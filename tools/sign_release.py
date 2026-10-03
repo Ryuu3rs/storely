@@ -11,8 +11,8 @@ import re
 import sys
 from pathlib import Path
 
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from nacl.exceptions import BadSignatureError
+from nacl.signing import VerifyKey
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_key import app_public_key, load_private_key, public_b64
@@ -65,10 +65,10 @@ def sign(folder: Path) -> None:
     if pub != app_public_key():
         sys.exit("the signing key doesn't match PUBLIC_KEY in storemgr/updater.py - installed copies would reject it")
     sums = "".join(f"{sha256(p)}  {p.name}\n" for p in files).encode()
-    sig = key.sign(sums)
+    sig = key.sign(sums).signature
     try:
-        Ed25519PublicKey.from_public_bytes(base64.b64decode(pub)).verify(sig, sums)
-    except InvalidSignature:
+        VerifyKey(base64.b64decode(pub)).verify(sums, sig)
+    except BadSignatureError:
         sys.exit("self-check of the new signature failed")
     (folder / "SHA256SUMS").write_bytes(sums)
     (folder / "SHA256SUMS.sig").write_bytes(base64.b64encode(sig) + b"\n")

@@ -14,30 +14,36 @@ import re
 import sys
 from pathlib import Path
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from nacl.signing import SigningKey
 
 KEY_FILE = Path(os.environ.get("USERPROFILE", str(Path.home()))) / ".storely-release" / "ed25519_private.pem"
 ENV_VAR = "STORELY_SIGNING_KEY"
 UPDATER = Path(__file__).resolve().parent.parent / "storemgr" / "updater.py"
+# PKCS#8 wrapping of an Ed25519 private key is a fixed 16-byte header followed by the 32-byte seed
+PKCS8_PREFIX = bytes.fromhex("302e020100300506032b657004220420")
 
 
-def public_b64(key: Ed25519PrivateKey) -> str:
-    raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-    return base64.b64encode(raw).decode()
+def public_b64(key: SigningKey) -> str:
+    return base64.b64encode(bytes(key.verify_key)).decode()
 
 
-def _from_pem(pem: bytes, where: str) -> Ed25519PrivateKey:
+def to_pem(key: SigningKey) -> bytes:
+    body = base64.b64encode(PKCS8_PREFIX + bytes(key)).decode()
+    return f"-----BEGIN PRIVATE KEY-----\n{body}\n-----END PRIVATE KEY-----\n".encode()
+
+
+def _from_pem(pem: bytes, where: str) -> SigningKey:
+    m = re.search(rb"-----BEGIN PRIVATE KEY-----(.+?)-----END PRIVATE KEY-----", pem, re.S)
     try:
-        key = serialization.load_pem_private_key(pem, password=None)
-    except (ValueError, TypeError) as e:
-        sys.exit(f"{where} is not an unencrypted PEM private key: {e}")
-    if not isinstance(key, Ed25519PrivateKey):
-        sys.exit(f"{where} is not an Ed25519 key")
-    return key
+        der = base64.b64decode(b"".join(m.group(1).split()), validate=True) if m else b""
+    except ValueError:
+        der = b""
+    if len(der) != 48 or not der.startswith(PKCS8_PREFIX):
+        sys.exit(f"{where} is not an unencrypted Ed25519 PEM private key")
+    return SigningKey(der[16:])
 
 
-def load_private_key() -> Ed25519PrivateKey:
+def load_private_key() -> SigningKey:
     """The signing key from STORELY_SIGNING_KEY if set (CI), else from KEY_FILE."""
     pem = os.environ.get(ENV_VAR, "").strip()
     if pem:
@@ -54,8 +60,8 @@ def app_public_key() -> str:
 
 
 def create() -> None:
-    key = Ed25519PrivateKey.generate()
-    pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    key = SigningKey.generate()
+    pem = to_pem(key)
     KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(KEY_FILE, "xb") as f:

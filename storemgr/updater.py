@@ -21,8 +21,8 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 import requests
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from nacl.exceptions import BadSignatureError
+from nacl.signing import VerifyKey
 
 from . import APP_NAME, DATA_DIR, __version__, secure
 from .download import Cancelled, file_digest
@@ -162,9 +162,9 @@ def _small(url: str, what: str) -> bytes:
 def verify_sums(sums: bytes, sig: bytes) -> None:
     """Raise unless `sig` (base64) is PUBLIC_KEY's signature of `sums`."""
     try:
-        key = Ed25519PublicKey.from_public_bytes(base64.b64decode(PUBLIC_KEY, validate=True))
-        key.verify(base64.b64decode(b"".join(sig.split()), validate=True), sums)
-    except (InvalidSignature, ValueError):
+        key = VerifyKey(base64.b64decode(PUBLIC_KEY, validate=True))
+        key.verify(sums, base64.b64decode(b"".join(sig.split()), validate=True))
+    except (BadSignatureError, ValueError, TypeError):
         raise RuntimeError("the update's signature doesn't check out, so it was not used") from None
 
 

@@ -8,8 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 import requests
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from nacl.signing import SigningKey
 
 from storemgr import updater
 
@@ -60,8 +59,8 @@ def net(monkeypatch):
 
 @pytest.fixture
 def key(monkeypatch):
-    k = Ed25519PrivateKey.generate()
-    raw = k.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    k = SigningKey.generate()
+    raw = bytes(k.verify_key)
     monkeypatch.setattr(updater, "PUBLIC_KEY", base64.b64encode(raw).decode())
     return k
 
@@ -90,7 +89,7 @@ def release(name=X64, size=None):
 def publish(net, k, sums=None, sig_of=None, installer=PAYLOAD, name=X64, cdn=CDN):
     """Serve a release: SUMS + sig directly from github.com, the installer through a redirect to `cdn`."""
     sums = sums if sums is not None else f"{hashlib.sha256(installer).hexdigest()}  {name}\n".encode()
-    sig = base64.b64encode(k.sign(sig_of if sig_of is not None else sums))
+    sig = base64.b64encode(k.sign(sig_of if sig_of is not None else sums).signature)
     net.routes[GH + "SHA256SUMS"] = Resp(GH + "SHA256SUMS", body=sums)
     net.routes[GH + "SHA256SUMS.sig"] = Resp(GH + "SHA256SUMS.sig", body=sig + b"\n")
     net.routes[GH + name] = Resp(GH + name, 302, headers={"Location": cdn})
@@ -211,7 +210,7 @@ def test_download_verifies_and_saves(net, key, upd_dir):
 
 
 def test_signature_from_another_key_is_rejected(net, key, upd_dir):
-    publish(net, Ed25519PrivateKey.generate())
+    publish(net, SigningKey.generate())
     with pytest.raises(RuntimeError, match="signature"):
         updater.download(release())
     assert GH + X64 not in net.calls and not (upd_dir / X64).exists()
