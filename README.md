@@ -1,81 +1,121 @@
-# My Store
+<p align="center"><img src="docs/banner.png" alt="Unjammed - the Microsoft Store, unjammed" width="860"></p>
 
-A Microsoft Store replacement that doesn't jam.
+<p align="center">
+  <a href="https://github.com/Ryuu3rs/unjammed/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/Ryuu3rs/unjammed?label=download&color=1f5fd6"></a>
+  <a href="https://github.com/Ryuu3rs/unjammed/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Ryuu3rs/unjammed/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Windows 10 and 11, x64 and ARM64" src="https://img.shields.io/badge/Windows-10%20%7C%2011%20%C2%B7%20x64%20%7C%20ARM64-0078d4">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-green"></a>
+</p>
 
-It uses Microsoft's own services - the Store catalogue, the Store's browse/search/review service and the Windows
-Update delivery servers the Store downloads from - but replaces the Store app and its install queue.
+**Unjammed installs and updates your Windows apps - Microsoft Store apps and your other programs - without the
+Microsoft Store getting stuck.** Free, open source, no account, no tracking.
 
-Unofficial: not made, endorsed or supported by Microsoft. Free apps only; it doesn't get around app licensing.
+## Why
+
+If your Store downloads sit at "Pending" forever, updates never finish, or one stuck app blocks all the others, it's
+usually not your internet. Windows' app installer works through one queue, and when a job in it hangs, everything
+behind it waits. Worse, Windows saves that queue and **reloads the stuck job at every restart**, so rebooting doesn't
+fix it. The Microsoft Store also likes to start its own copy of an update you're already installing, and the two
+cancel each other out.
+
+Unjammed talks to the same Microsoft services the Store uses - the Store catalogue and the Windows Update servers
+that deliver the packages - but runs its own queue: one install at a time across the whole PC, with a jam detector
+and a one-click **Unjam** that clears the stuck jobs properly.
+
+## What you get
+
+<p align="center"><img src="docs/screenshots/light-home.png" alt="Home" width="860"></p>
+
+- **Browse and install** - the full Store: charts, categories, search with filters, app pages with screenshots and
+  reviews. Free apps, including the "desktop installer" ones (Discord, Zoom, Teams...).
+- **Every update in one place** - Store apps, the Windows runtimes they need, and your other programs (Chrome, 7-Zip,
+  Steam, VLC...) through winget. "Update all" really means all.
+- **It doesn't jam** - one install at a time PC-wide, pause/resume/reorder downloads, and a Health page that spots a
+  stuck installer and unjams it.
+- **Permission warnings** - if an update wants more than the version you have (camera, microphone, your files,
+  full desktop access), it waits for your OK. The Microsoft Store never tells you this.
+- **You stay in control** - hold an app, skip a bad version, install an older version, keep the previous version to
+  roll back, choose which drive apps go on, and move apps between drives.
+- **Offline copies** - save an app and everything it needs to a USB stick and install it on a PC without internet.
+- **Preinstalled extras** - remove Candy Crush, Clipchamp, News and the rest for your account; put them back any time.
+- **Quietly in the background** - optional updates at sign-in and every 6 hours, as you (never as admin), with quiet
+  hours, wait-for-Wi-Fi and wait-for-the-charger options.
+- **Store links open here** (optional) - links to the Microsoft Store, from websites or Windows itself, open in
+  Unjammed.
+
+<table>
+<tr>
+<td><img src="docs/screenshots/dark-updates.png" alt="Updates: Store apps, Windows runtimes and other programs"></td>
+<td><img src="docs/screenshots/dark-app-9NCBCSZSJRSB.png" alt="An app page"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/dark-health.png" alt="Health: jam detector, service test, preinstalled extras"></td>
+<td><img src="docs/screenshots/light-settings.png" alt="Settings"></td>
+</tr>
+</table>
 
 ## Install
 
-Run `MyStore-Setup-<version>.exe` and click through: it installs to Program Files, adds a Start menu entry (and a
-desktop shortcut if you want one) and an uninstaller. Optional during setup:
+1. Download **`Unjammed-Setup-<version>-x64.exe`** from [Releases](https://github.com/Ryuu3rs/unjammed/releases/latest)
+   (or the `-arm64` one for Snapdragon/ARM PCs).
+2. Run it and click through: Next, Next, Install. It goes into Program Files, adds a Start menu entry, and has an
+   uninstaller in Settings > Apps.
 
-- **Background updates** - a scheduled task that runs as you (no admin) at sign-in and every 6 hours.
-- **Open Microsoft Store links in My Store** - registers My Store for `ms-windows-store://` links; Windows then asks
-  you to confirm it in Settings > Default apps.
+**"Windows protected your PC"?** The installer isn't code-signed (that costs hundreds a year), so SmartScreen
+doesn't know it yet. Click **More info > Run anyway**. To check you have the real file, compare its SHA-256
+(`Get-FileHash .\Unjammed-Setup-*.exe`) with the `SHA256SUMS` file on the release page.
 
-Installing a newer setup over the top upgrades in place and keeps your settings. To pin it, right-click My Store in
-the Start menu > Pin to Start / Pin to taskbar (Windows doesn't let installers pin for you).
+Already installed? Unjammed tells you when a new version is out and updates itself after checking the download's
+signature. Installing a new version over the top keeps all your settings.
 
-## What it does
+## Is it safe?
 
-| Page                |                                                                                                                                                                |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home                | Your status, category chips, shelves: updates for your apps, wishlist, Top free apps/games, Trending, Best-selling games, Top paid                             |
-| Search              | Full Store search with Apps/Games, price and sort filters, "Load more"                                                                                         |
-| Categories / charts | Top free / paid / trending per category, "See all" grids                                                                                                       |
-| App page            | Get / Update / Open, Unjam, Wishlist, What's new (publisher update date + what My Store installed when), requirements, age rating, links, screenshots, reviews |
-| Updates             | Available, in progress, needs attention (Retry all / Unjam & retry all), held back, desktop apps, the Store's own stuck queue                                  |
-| Library             | All Store apps + desktop apps installed from the Store, sizes, export / import app list                                                                        |
-| Downloads           | The queue: pause / resume (keeps partial downloads), cancel, reorder, pause all, parallel downloads, speed limit                                               |
-| Wishlist            | Apps starred for later                                                                                                                                         |
-| Health              | Installer jam detector, Unjam everything, auto-unjam, Store auto-update switch, clean-up (caches, WindowsApps\Deleted)                                         |
-| Settings            | Background updates, notifications, metered-connection pause, holds, region, Store links                                                                        |
+- Store packages are only accepted from Microsoft's servers, must match Microsoft's published digest, and must be
+  signed by the Microsoft Store (or Microsoft) for the same publisher as the copy you have. Desktop installers must
+  match the SHA-256 in the Store's own install recipe and be validly signed.
+- The few things that need admin (clearing a jam, cleaning up old app versions, apps that install a Windows service)
+  ask once through the normal Windows prompt, and run code that only admins can change. No scripts are written to
+  disk.
+- Background updates run as you, never as admin.
+- The whole thing is open source. See [SECURITY.md](SECURITY.md) for the details and how to report a problem.
 
-Per-app menu: Update, Unjam, Unjam (deep clean), Hold (never update / skip a version), Repair, Reset, Roll back,
-Uninstall, Update automatically (background).
+## FAQ
 
-Command line: `mystore-cli.exe list | updates | update <app> [--close] | queue | health | export <f> | import <f>`.
+**Does it replace the Microsoft Store?** It does everything most people use the Store for, and the Store can stay
+installed alongside it. Turning off the Store's own automatic updates (Health page) stops the two fighting.
 
-## Safety
+**Paid apps and games?** Not supported - those need a licence from your Microsoft account, which only the Store can
+get. Free apps (most of the Store) work.
 
-- Store packages: must be served from a Microsoft address, match Microsoft's SHA-1 digest, and carry a valid
-  signature from the Microsoft Marketplace CA or Microsoft's own code-signing CAs (exact names, not "mentions
-  Microsoft"), from the same publisher as the copy already installed.
-- Desktop-installer apps (Discord, Teams...): the installer must match the SHA-256 in the Store's own install
-  recipe and be validly Authenticode-signed.
-- Admin actions (Unjam deep clean, WindowsApps clean-up, apps with a Windows service, the Store auto-update
-  switch) take one UAC prompt. The elevated part is My Store itself - no scripts are written or run from disk - and
-  it only runs from a copy only admins can modify (Program Files). A copy that others can change refuses.
-- Work that needs SYSTEM (moving the Store's stuck queue files) runs the same installed program as a one-off task,
-  with its files in a `C:\ProgramData\MyStore` folder only SYSTEM and Administrators can write to. Every input is
-  validated before it gets anywhere near admin code.
-- The background task runs as you, never as admin. Updates that need admin wait until you open My Store.
-- One install at a time across the whole PC - overlapping installs are what jam Windows' installer.
+**Is this allowed?** It uses the same public services the Store app does, downloads only Microsoft-signed packages
+from Microsoft, and doesn't get around licensing. It is an unofficial tool, not made or endorsed by Microsoft, and
+Microsoft can change those services at any time (the Health page has a test for exactly that).
+
+**Uninstalling** - Settings > Apps > Unjammed > Uninstall. It asks whether to keep your settings.
 
 ## Privacy
 
-No accounts, telemetry or analytics. Everything stays on your PC in `%LOCALAPPDATA%\MyStore\`. My Store talks to
+No accounts, analytics or telemetry. Everything stays on your PC in `%LOCALAPPDATA%\Unjammed`. Unjammed talks to
 Microsoft's Store and delivery services (sending your region, language, Windows build and the apps it looks up, as
-the Store does) and, for desktop-installer apps, to that publisher's download server.
+the Store does), to a desktop app's own download server when you install one, to winget's sources, and to GitHub
+to check for a new Unjammed.
 
-Reporting a problem? Attach `%LOCALAPPDATA%\MyStore\mystore.log` - but look through it first: it contains file
-paths that include your Windows user name.
+## Command line
+
+`unjammed-cli list | updates | update <app> [--close] | queue | health | selftest | export <file> | import <file>`,
+with `--json` for scripting.
 
 ## Building
 
-Needs Python 3.12+ and Inno Setup 6. `pwsh -File build.ps1` makes a clean venv from the hash-pinned
-`requirements.lock`, runs the tests, builds `dist\MyStore\` with PyInstaller and the installer
-`dist\MyStore-Setup-<version>.exe`. From source: `python main.py` (admin actions are off when the source folder can
-be changed without admin rights - use the installed build for those).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Short version: Python 3.12+, Inno Setup 6, `pwsh -File build.ps1`.
 
-## Files
+## Thanks
 
-- `main.py` - entry point (window, `--auto`, admin/SYSTEM roles); `app.py` - the window; `cli.py` - command line
-- `storemgr/` - engine (`engine.py`, `fe3.py`, `catalog.py`, `download.py`, `winapps.py`), browsing (`browse.py`),
-  desktop installers (`wpm.py`), queue (`dlqueue.py`), background (`background.py`), health/unjam (`health.py`,
-  `storequeue.py`), admin (`admin.py` caller side, `helper.py` elevated/SYSTEM side, `secure.py` permission checks),
-  `cleanup.py`, `settings.py`, `winsys.py`, `ui/`
-- `installer/MyStore.iss`, `MyStore.spec`, `build.ps1` - packaging; `tests/` - pytest
+Unjammed stands on work others did to understand the Store's services, especially
+[StoreLib](https://github.com/StoreDev/StoreLib), [rg-adguard's Store link generator](https://store.rg-adguard.net/)
+and Microsoft's own [winget](https://github.com/microsoft/winget-cli).
+
+---
+
+Unjammed is not affiliated with or endorsed by Microsoft. Microsoft, Windows and Microsoft Store are trademarks of the
+Microsoft group of companies.
