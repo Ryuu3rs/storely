@@ -75,10 +75,12 @@ jobs:
           python tools/sign_release.py dist
           "signed=true" >> $env:GITHUB_OUTPUT
       - name: Create release
-        shell: pwsh
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $files = Get-ChildItem dist -File | ForEach-Object FullName
-          $draft = if ("${{ steps.sign.outputs.signed }}" -eq "true") { @() } else { @("--draft") }
-          gh release create "${{ github.ref_name }}" @files --title "Storely ${{ github.ref_name }}" --notes-file notes.md @draft
+          ls -la dist
+          draft=--draft
+          [ "${{ steps.sign.outputs.signed }}" = "true" ] && draft=
+          gh release create "${{ github.ref_name }}" --title "Storely ${{ github.ref_name }}" --notes-file notes.md $draft
+          gh release upload "${{ github.ref_name }}" dist/*
