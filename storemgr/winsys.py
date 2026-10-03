@@ -21,7 +21,7 @@ class InstallLock:
     """One install at a time across the app, the background updater and the CLI (Windows' installer jams when
     jobs overlap). A named mutex, so it also covers other processes; re-entrant within a thread."""
 
-    def __init__(self, name: str = "Local\\Unjammed-Install", max_wait: float = 2 * 3600):
+    def __init__(self, name: str = "Local\\Storely-Install", max_wait: float = 2 * 3600):
         self._h = _k32.CreateMutexW(None, False, name)
         self._local = threading.RLock()
         self._depth = threading.local()
@@ -65,11 +65,11 @@ def need_space(where, needed: int, what: str) -> None:
         raise RuntimeError(f"Not enough space on {drive} for {what}: needs about {gb(needed)}, {gb(free)} free")
 
 
-STORE_LINK_PROGID = "Unjammed.StoreLink"   # registered by the installer
+STORE_LINK_PROGID = "Storely.StoreLink"   # registered by the installer
 
 
 def store_links_ours() -> bool:
-    """Has the user picked Unjammed for ms-windows-store:// links (Settings > Default apps)?"""
+    """Has the user picked Storely for ms-windows-store:// links (Settings > Default apps)?"""
     try:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations"
@@ -92,14 +92,14 @@ def metered() -> bool:
         return False
 
 
-# installed: our own identity (the Start menu shortcut carries it), so toasts say "Unjammed" with our icon;
+# installed: our own identity (the Start menu shortcut carries it), so toasts say "Storely" with our icon;
 # from source there's no shortcut, so borrow PowerShell's
 AUMID = APP_ID if FROZEN else "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
 
 
 def toast(title: str, body: str, actions: list[tuple[str, str]] | None = None, launch: str = "") -> bool:
     """Windows notification (works without a window - used by the background updater). actions = [(label,
-    unjammed://... link)]; buttons only work in the installed app, which registers that link type."""
+    storely://... link)]; buttons only work in the installed app, which registers that link type."""
     try:
         from winrt.windows.data.xml.dom import XmlDocument
         from winrt.windows.ui.notifications import ToastNotification, ToastNotificationManager
@@ -118,8 +118,8 @@ def toast(title: str, body: str, actions: list[tuple[str, str]] | None = None, l
 
 
 # ----------------------------------------------------------------------------- one-time action links
-# unjammed:// links can be opened by any web page, so links that DO something (not just open a page) carry a
-# random token that only Unjammed's own notifications know, valid once and for a day.
+# storely:// links can be opened by any web page, so links that DO something (not just open a page) carry a
+# random token that only Storely's own notifications know, valid once and for a day.
 TOKEN_FILE = DATA_DIR / "action_token.json"
 
 
@@ -128,7 +128,7 @@ def action_link(action: str) -> str:
     import secrets
     tok = secrets.token_urlsafe(24)
     TOKEN_FILE.write_text(json.dumps({"token": tok, "action": action, "expires": time.time() + 86400}), encoding="utf-8")
-    return f"unjammed://{action}?token={tok}"
+    return f"storely://{action}?token={tok}"
 
 
 def take_action_token(action: str, token: str) -> bool:

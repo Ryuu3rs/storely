@@ -28,7 +28,7 @@ Code style: short docstrings, few comments (only where the why isn't obvious), p
 ## Building an installer
 
 `pwsh -File build.ps1` builds for this PC's processor: clean venv from `requirements.lock` -> tests -> PyInstaller
--> smoke test -> `dist\Unjammed-Setup-<version>-<arch>.exe` (needs Inno Setup 6). Dependencies change through
+-> smoke test -> `dist\Storely-Setup-<version>-<arch>.exe` (needs Inno Setup 6). Dependencies change through
 `requirements.txt` / `requirements-dev.txt`, then regenerate both locks:
 
 ```

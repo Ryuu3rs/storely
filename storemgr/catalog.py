@@ -17,7 +17,7 @@ CACHE_FILE = CACHE_DIR / "catalog.json"
 CACHE_TTL = 6 * 3600
 
 _session = requests.Session()
-_session.headers["User-Agent"] = f"Unjammed/{__version__}"
+_session.headers["User-Agent"] = f"Storely/{__version__}"
 
 
 @dataclass

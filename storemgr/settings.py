@@ -11,7 +11,7 @@ DEFAULTS = {
     "close_apps": False, "keep_rollback": False, "check_on_start": True, "watchdog": True, "market": "GB",
     "auto_update": [],              # families updated in the background ("ticked")
     "background_mode": "ticked",    # "ticked" | "all"
-    "background_desktop": True,     # also update desktop-installer apps installed via Unjammed
+    "background_desktop": True,     # also update desktop-installer apps installed via Storely
     "auto_unjam": True,             # cancel the Store's stuck items automatically when a jam is seen
     "notify": True,
     "pause_on_metered": True,

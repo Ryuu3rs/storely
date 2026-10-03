@@ -1,5 +1,5 @@
 """Diagnostics: the log (rotated, so it never grows without limit), crash capture (an installed windowed app has no
-console, so an unexpected error would otherwise vanish) and a self-test of the Microsoft services Unjammed uses."""
+console, so an unexpected error would otherwise vanish) and a self-test of the Microsoft services Storely uses."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from logging.handlers import RotatingFileHandler
 
 from . import LOG_FILE
 
-log = logging.getLogger("unjammed")
+log = logging.getLogger("storely")
 if not log.handlers:
     try:
         _h = RotatingFileHandler(LOG_FILE, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8", delay=True)
@@ -39,8 +39,8 @@ def install_crash_handlers(gui: bool = False) -> None:
             try:
                 from PySide6.QtWidgets import QApplication, QMessageBox
                 if QApplication.instance():
-                    QMessageBox.warning(None, "Unjammed", f"Something went wrong: {exc}\n\nThe details are in the log "
-                                        f"(Settings > Open Unjammed's data folder):\n{LOG_FILE}")
+                    QMessageBox.warning(None, "Storely", f"Something went wrong: {exc}\n\nThe details are in the log "
+                                        f"(Settings > Open Storely's data folder):\n{LOG_FILE}")
             finally:
                 _showing.release()
 
@@ -49,7 +49,7 @@ def install_crash_handlers(gui: bool = False) -> None:
 
 
 def selftest(market: str = "GB") -> list[dict]:
-    """Can we reach each Microsoft service Unjammed depends on? (They're undocumented and can change.)"""
+    """Can we reach each Microsoft service Storely depends on? (They're undocumented and can change.)"""
     from . import fe3
     from .browse import Browse
     from .catalog import Catalog

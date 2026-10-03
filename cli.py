@@ -1,8 +1,8 @@
-"""Unjammed from a terminal.
-  unjammed-cli list | updates | update <name-or-family> [--close] | queue | health | selftest
-  unjammed-cli auto                  one background pass (same as Unjammed.exe --auto)
-  unjammed-cli export <file.json>    save the list of Store apps on this PC
-  unjammed-cli import <file.json>    install everything in that list that is missing (store apps)
+"""Storely from a terminal.
+  storely-cli list | updates | update <name-or-family> [--close] | queue | health | selftest
+  storely-cli auto                  one background pass (same as Storely.exe --auto)
+  storely-cli export <file.json>    save the list of Store apps on this PC
+  storely-cli import <file.json>    install everything in that list that is missing (store apps)
 Add --json to list, updates, queue, health or selftest for machine-readable output."""
 
 import json
@@ -31,7 +31,7 @@ def main(argv):
     argv = [a for a in argv if a != "--json"]
     cmd = argv[1] if len(argv) > 1 else "updates"
     if cmd in ("--version", "version"):
-        print(f"Unjammed {__version__}")
+        print(f"Storely {__version__}")
         return 0
     s = settings.load()
     if cmd == "auto":

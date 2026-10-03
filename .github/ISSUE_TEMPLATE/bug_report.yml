@@ -1,5 +1,5 @@
 name: Something isn't working
-description: An app won't install or update, Unjammed shows an error, or something looks wrong
+description: An app won't install or update, Storely shows an error, or something looks wrong
 labels: [bug]
 body:
   - type: textarea
@@ -12,7 +12,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Unjammed version
+      label: Storely version
       description: Settings > About
       placeholder: "1.2.0"
     validations:
@@ -28,6 +28,6 @@ body:
     attributes:
       label: Log (optional)
       description: >-
-        Settings > Open Unjammed's data folder > unjammed.log. Paste only the lines around the problem, and check them
+        Settings > Open Storely's data folder > storely.log. Paste only the lines around the problem, and check them
         first - they contain file paths that include your Windows user name.
       render: text

@@ -1,4 +1,4 @@
-"""Unjammed - a Microsoft Store replacement that doesn't jam."""
+"""Storely - a Microsoft Store replacement that doesn't jam."""
 
 from __future__ import annotations
 
@@ -168,7 +168,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
     def _tray(self):
         self.tray = QSystemTrayIcon(QIcon(str(ICON_FILE)), self)
         m = QMenu()
-        m.addAction("Open Unjammed", self.showNormal)
+        m.addAction("Open Storely", self.showNormal)
         m.addAction("Check for updates", self.check_updates)
         m.addAction("Update all", self.update_all)
         m.addAction("Downloads", lambda: (self.showNormal(), self.show_page("downloads")))
@@ -294,18 +294,18 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             self.render_current()
 
     def check_self_update(self, manual=False):
-        """New Unjammed release on GitHub (signed with our own key - see storemgr.updater)."""
+        """New Storely release on GitHub (signed with our own key - see storemgr.updater)."""
         if not manual and (not FROZEN or self.settings.get("self_update", "notify") == "off"):
             return
 
         def done(rel, err):
             self.self_update = rel if not err else None
             if manual:
-                QMessageBox.information(self, APP_NAME, f"Couldn't check for a new Unjammed: {err}" if err else
-                                        f"Unjammed {rel.version} is available." if rel else f"You have the newest Unjammed ({__version__}).")
+                QMessageBox.information(self, APP_NAME, f"Couldn't check for a new Storely: {err}" if err else
+                                        f"Storely {rel.version} is available." if rel else f"You have the newest Storely ({__version__}).")
             if rel and (manual or rel.version != self.settings.get("skipped_update")):
                 if not manual:
-                    self.notify(APP_NAME, f"Unjammed {rel.version} is available - see Settings > Unjammed updates")
+                    self.notify(APP_NAME, f"Storely {rel.version} is available - see Settings > Storely updates")
                 if self.current in ("home", "settings"):
                     self.render_current()
         self.jobs.run(updater.check, done)
@@ -314,7 +314,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         rel = getattr(self, "self_update", None)
         if not rel:
             return
-        self.statusBar().showMessage(f"Downloading Unjammed {rel.version}...")
+        self.statusBar().showMessage(f"Downloading Storely {rel.version}...")
 
         def done(path, err):
             if err:
@@ -348,7 +348,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
                 QTimer.singleShot(20000, self.check_health)
             elif self.settings["watchdog"] and (not prev or not prev["stuck"]):
                 self.notify(APP_NAME, f"Windows' app installer is jammed ({len(h['stuck'])} stuck job(s)). "
-                            "Open Unjammed > Health and press Unjam.", warn=True)
+                            "Open Storely > Health and press Unjam.", warn=True)
         else:
             self._auto_unjammed = False
             self.health_chip.setText("  ✓ Installer healthy  ")
@@ -633,7 +633,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.jobs.run(lambda: self.engine.export_offline(app, dest), lambda files, e: (
             self.statusBar().clearMessage(),
             QMessageBox.information(self, APP_NAME, f"Saved to {dest}:\n" + "\n".join(p.name for p in files) +
-                                    "\n\nOn the other PC: Unjammed > Library > Install from folder.") if files else
+                                    "\n\nOn the other PC: Storely > Library > Install from folder.") if files else
             QMessageBox.warning(self, APP_NAME, f"Couldn't save it: {e}")))
 
     def _confirm(self, text, fn):
@@ -696,7 +696,7 @@ PRODUCT_ID = re.compile(r"[A-Za-z0-9]{12}")
 def parse_store_link(text: str) -> tuple[str, str]:
     """ms-windows-store://pdp/?ProductId=9WZDNCRFJBMP -> ("product", "9WZDNCRFJBMP"); also PFN=, search, updates,
     library; Store web pages (apps.microsoft.com/detail/<id>, microsoft.com/store/productId/<id>); and our own
-    unjammed://updates, unjammed://update-all?token=.... ("", "") = not a link we know (just show the window)."""
+    storely://updates, storely://update-all?token=.... ("", "") = not a link we know (just show the window)."""
     u = urlsplit((text or "").strip())
     scheme, host = u.scheme.lower(), (u.hostname or "").lower()
     if scheme in ("http", "https"):
@@ -708,7 +708,7 @@ def parse_store_link(text: str) -> tuple[str, str]:
         return "", ""
     qs = {k.lower(): v for k, v in parse_qsl(u.query)}
     where = (u.netloc or u.path.strip("/")).lower()
-    if scheme == "unjammed":
+    if scheme == "storely":
         if where == "update-all":
             return "update-all", qs.get("token", "")
         return (where, "") if where in ("updates", "library", "home") else ("home", "")
@@ -729,7 +729,7 @@ def parse_store_link(text: str) -> tuple[str, str]:
 
 
 def _instance_name() -> str:
-    return f"Unjammed-{getpass.getuser()}"
+    return f"Storely-{getpass.getuser()}"
 
 
 def _hand_over(msg: str) -> bool:
@@ -746,7 +746,7 @@ def _hand_over(msg: str) -> bool:
 
 def main(args: list[str] | None = None):
     args = sys.argv[1:] if args is None else args
-    link = next((a for a in args if a.lower().startswith(("ms-windows-store:", "unjammed:"))), "")
+    link = next((a for a in args if a.lower().startswith(("ms-windows-store:", "storely:"))), "")
     diag.install_crash_handlers(gui=True)
     try:   # own taskbar identity, so Windows shows our icon instead of Python's
         import ctypes

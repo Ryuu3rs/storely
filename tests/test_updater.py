@@ -13,9 +13,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from storemgr import updater
 
-GH = "https://github.com/Ryuu3rs/unjammed/releases/download/v9.1.0/"
+GH = "https://github.com/Ryuu3rs/storely/releases/download/v9.1.0/"
 CDN = "https://release-assets.githubusercontent.com/github-production-release-asset/1/abc?sig=x"
-X64, ARM = "Unjammed-Setup-9.1.0.0-x64.exe", "Unjammed-Setup-9.1.0.0-arm64.exe"
+X64, ARM = "Storely-Setup-9.1.0.0-x64.exe", "Storely-Setup-9.1.0.0-arm64.exe"
 PAYLOAD = b"MZ fake installer " * 1000
 
 
@@ -78,7 +78,7 @@ def asset(name, size=1):
 
 
 def api(tag="v9.1.0", names=(X64, ARM, "SHA256SUMS", "SHA256SUMS.sig"), **extra):
-    return {"tag_name": tag, "body": "  What's new\n", "html_url": "https://github.com/Ryuu3rs/unjammed/releases/tag/v9.1.0",
+    return {"tag_name": tag, "body": "  What's new\n", "html_url": "https://github.com/Ryuu3rs/storely/releases/tag/v9.1.0",
             "assets": [asset(n, len(PAYLOAD) if n.endswith(".exe") else 1) for n in names], **extra}
 
 
@@ -119,7 +119,7 @@ def test_parse_release_picks_this_arch(arch, name):
 @pytest.mark.parametrize("data", [
     api(tag="v1.2.0"), api(tag="v1.0.0"), api(tag="nightly"), api(draft=True), api(prerelease=True),
     api(names=(X64, "SHA256SUMS")), api(names=(ARM, "SHA256SUMS", "SHA256SUMS.sig")),
-    api(names=("Unjammed-Setup-9.0.0.0-x64.exe", "SHA256SUMS", "SHA256SUMS.sig")), {}, [],
+    api(names=("Storely-Setup-9.0.0.0-x64.exe", "SHA256SUMS", "SHA256SUMS.sig")), {}, [],
 ])
 def test_parse_release_rejects(data):
     assert updater.parse_release(data, current="1.2.0", arch="x64") is None
@@ -199,7 +199,7 @@ def test_check_is_quiet_when_nothing_to_do(net, route):
 def test_download_verifies_and_saves(net, key, upd_dir):
     publish(net, key)
     (upd_dir).mkdir()
-    (upd_dir / "Unjammed-Setup-9.0.0.0-x64.exe").write_bytes(b"old")
+    (upd_dir / "Storely-Setup-9.0.0.0-x64.exe").write_bytes(b"old")
     seen = []
     path = updater.download(release(), progress=lambda d, t, s: seen.append((d, t)))
     assert path == upd_dir / X64 and path.read_bytes() == PAYLOAD

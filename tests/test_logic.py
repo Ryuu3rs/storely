@@ -70,9 +70,9 @@ def test_for_this_pc_drops_xbox_and_arm_only():
     ("https://apps.microsoft.com/detail/9wzdncrfjbmp?hl=en-gb&gl=GB", ("product", "9WZDNCRFJBMP")),
     ("https://apps.microsoft.com/store/detail/microsoft-store/9WZDNCRFJBMP", ("product", "9WZDNCRFJBMP")),
     ("https://www.microsoft.com/store/productId/9NBLGGH4NNS1", ("product", "9NBLGGH4NNS1")),
-    ("unjammed://updates", ("updates", "")),
-    ("unjammed://update-all?token=abc", ("update-all", "abc")),
-    ("unjammed://format-c", ("home", "")),
+    ("storely://updates", ("updates", "")),
+    ("storely://update-all?token=abc", ("update-all", "abc")),
+    ("storely://format-c", ("home", "")),
 ])
 def test_parse_store_link(link, expected):
     assert parse_store_link(link) == expected

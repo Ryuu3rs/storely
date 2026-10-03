@@ -232,8 +232,8 @@ class ManagePages:
             return
         self.statusBar().showMessage("Checking signatures and installing...")
         self.jobs.run(lambda: self.engine.install_folder(Path(folder)), lambda res, e: (
-            QMessageBox.information(self, "Unjammed", "Installed:\n" + "\n".join(res)) if res else
-            QMessageBox.warning(self, "Unjammed", f"Nothing was installed: {e}"), self.rescan()))
+            QMessageBox.information(self, "Storely", "Installed:\n" + "\n".join(res)) if res else
+            QMessageBox.warning(self, "Storely", f"Nothing was installed: {e}"), self.rescan()))
 
     def export_apps(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export app list", str(DATA_DIR / "my-apps.json"), "JSON (*.json)")
@@ -254,14 +254,14 @@ class ManagePages:
         try:
             data = json.load(open(path, encoding="utf-8"))
         except (OSError, ValueError) as e:
-            QMessageBox.warning(self, "Unjammed", f"Couldn't read that file: {e}")
+            QMessageBox.warning(self, "Storely", f"Couldn't read that file: {e}")
             return
         missing = [w for w in data.get("apps", []) if w.get("family") not in self.engine.apps and w.get("product_id")]
         desk = [w for w in data.get("desktop", []) if w["product_id"] not in self.desktop_apps]
         if not missing and not desk:
-            QMessageBox.information(self, "Unjammed", "Everything in that list is already installed.")
+            QMessageBox.information(self, "Storely", "Everything in that list is already installed.")
             return
-        if QMessageBox.question(self, "Unjammed", f"Install {len(missing)} Store app(s) and {len(desk)} desktop app(s) "
+        if QMessageBox.question(self, "Storely", f"Install {len(missing)} Store app(s) and {len(desk)} desktop app(s) "
                                 "that aren't on this PC?\n\n" + "\n".join(w["title"] for w in (missing + desk)[:25])) != QMessageBox.Yes:
             return
 
@@ -414,10 +414,10 @@ class ManagePages:
         self._toggle(lay, "auto_unjam", "Fix jams automatically",
                      "When a jam is seen, cancel the Store's stuck items straight away (no prompt). If it's still stuck, "
                      "you get a notification with a one-click Unjam.")
-        lay.addWidget(label("Stop the Microsoft Store fighting Unjammed", "H2"))
+        lay.addWidget(label("Stop the Microsoft Store fighting Storely", "H2"))
         off = admin.store_auto_updates_off()
         row = QHBoxLayout()
-        row.addWidget(label("Microsoft Store automatic updates are " + ("OFF - Unjammed handles updates."
+        row.addWidget(label("Microsoft Store automatic updates are " + ("OFF - Storely handles updates."
                             if off else "ON - the Store can start its own jobs for the same apps and jam them."), "Muted", wrap=True), 1)
         tb = button("Turn Store auto-updates back on" if off else "Turn Store auto-updates off")
         tb.clicked.connect(lambda: self.jobs.run(lambda: admin.store_auto_updates(off), lambda r, e: self.render_health()))
@@ -428,7 +428,7 @@ class ManagePages:
         st = QVBoxLayout()
         lay.addLayout(st)
         sr = QHBoxLayout()
-        sr.addWidget(label("Unjammed uses the Store's own (undocumented) services. If something stops working, this "
+        sr.addWidget(label("Storely uses the Store's own (undocumented) services. If something stops working, this "
                            "shows whether Microsoft changed or blocked one of them.", "Muted", wrap=True), 1)
         tb2 = button("Test them")
         sr.addWidget(tb2)
@@ -469,7 +469,7 @@ class ManagePages:
             r.addWidget(label("  Old app versions Windows failed to delete (WindowsApps\\Deleted) - needs one admin prompt", "Muted"), 1)
             b = button("Clean up")
             b.clicked.connect(lambda: self.jobs.run(cleanup.windows_leftovers, lambda res, e: (
-                QMessageBox.information(self, "Unjammed", f"Freed {fmt_size((res or {}).get('freed', 0))} "
+                QMessageBox.information(self, "Storely", f"Freed {fmt_size((res or {}).get('freed', 0))} "
                                         f"({fmt_size((res or {}).get('left', 0))} still in use)" if res and res.get("ok")
                                         else f"Clean-up didn't finish: {e or (res or {}).get('errors')}"), self.render_health())))
             r.addWidget(b)
@@ -511,17 +511,17 @@ class ManagePages:
 
             def remove():
                 pick = [e for cb, e in boxes if cb.isChecked()]
-                if not pick or QMessageBox.question(self, "Unjammed", f"Remove {len(pick)} app(s) for your account?\n\n"
+                if not pick or QMessageBox.question(self, "Storely", f"Remove {len(pick)} app(s) for your account?\n\n"
                                                     + "\n".join(e.title for e in pick)) != QMessageBox.Yes:
                     return
                 self.statusBar().showMessage(f"Removing {len(pick)} app(s)...")
                 self.jobs.run(lambda: [(e.title, *debloat.remove(e, self.engine.all_installed)) for e in pick],
-                              lambda res, err: (QMessageBox.information(self, "Unjammed", "\n".join(
+                              lambda res, err: (QMessageBox.information(self, "Storely", "\n".join(
                                   f"{t}: {'removed' if ok else msg}" for t, ok, msg in res or []) or str(err)), self.rescan()))
             rb.clicked.connect(remove)
             lay.addWidget(rb, 0, Qt.AlignLeft)
         if gone:
-            lay.addWidget(label("  Removed by Unjammed - put back:", "Muted"))
+            lay.addWidget(label("  Removed by Storely - put back:", "Muted"))
             for r in gone:
                 row = QHBoxLayout()
                 row.addWidget(label(f"      {r['title']}", "Muted"), 1)
@@ -529,7 +529,7 @@ class ManagePages:
                 pb.clicked.connect(lambda _, r=r: self.jobs.run(
                     lambda: self.engine.app_for_product(self.engine.catalog.product(r["product_id"])),
                     lambda a, e: (self.queue.add_store(a), self.show_page("downloads")) if a else
-                    QMessageBox.warning(self, "Unjammed", f"Couldn't find it in the Store: {e}")))
+                    QMessageBox.warning(self, "Storely", f"Couldn't find it in the Store: {e}")))
                 fg = button("Forget", flat=True)
                 fg.clicked.connect(lambda _, f=r["family"]: (debloat.forget(f), self.render_health()))
                 row.addWidget(pb)
@@ -556,7 +556,7 @@ class ManagePages:
                 free = f"{fmt_size(v.free)} free" if v.free is not None else ""
                 box.addWidget(label(f"  {v.label}  {free}  {state}".rstrip(), "Muted"))
             row = QHBoxLayout()
-            row.addWidget(label("Unjammed installs new apps to:"))
+            row.addWidget(label("Storely installs new apps to:"))
             dc = QComboBox()
             dc.addItems(["Windows' default"] + [f"{v.label} ({fmt_size(v.free)} free)" for v in usable])
             dc.setCurrentIndex(1 + usable.index(pref) if pref in usable else 0)
@@ -577,7 +577,7 @@ class ManagePages:
                 mk.addItems([v.label for v in others])
                 b = button("Make it Windows' default for every app (admin)")
                 b.clicked.connect(lambda: self.jobs.run(lambda: volumes.add_and_set_default(others[mk.currentIndex()].drive),
-                                                        lambda r, e: (QMessageBox.information(self, "Unjammed", (r or (False, str(e)))[1]
+                                                        lambda r, e: (QMessageBox.information(self, "Storely", (r or (False, str(e)))[1]
                                                                       or "Done"), self.render_settings())))
                 row2.addWidget(mk)
                 row2.addWidget(b)
@@ -619,8 +619,8 @@ class ManagePages:
             st = st or {}
             on = st.get("registered")
             row = QHBoxLayout()
-            row.addWidget(label(("ON - runs at sign-in and every 6 hours, even when Unjammed is closed."
-                                 if on else "OFF - updates only happen while Unjammed is open."), wrap=True), 1)
+            row.addWidget(label(("ON - runs at sign-in and every 6 hours, even when Storely is closed."
+                                 if on else "OFF - updates only happen while Storely is open."), wrap=True), 1)
             b = button("Turn off" if on else "Turn on", accent=not on)
             b.clicked.connect(lambda: self.jobs.run(background.unregister if on else background.register,
                                                     lambda r, e: self.render_settings()))
@@ -645,13 +645,13 @@ class ManagePages:
             r2.addStretch()
             bg.addLayout(r2)
             bg.addWidget(label("      Runs as you (no admin). Apps that are open are skipped. Updates that need admin "
-                               "(e.g. Codex's service) wait for you to open Unjammed.", "Muted", wrap=True))
+                               "(e.g. Codex's service) wait for you to open Storely.", "Muted", wrap=True))
         self.jobs.run(background.status, got)
         self._toggle(lay, "background_desktop", "Also update desktop apps installed from the Store",
                      "Discord, Teams and the like - using the Store's own installer recipe (SHA-256 checked).")
 
         lay.addWidget(label("Updating", "H2"))
-        self._toggle(lay, "check_on_start", "Check for updates when Unjammed opens", "Asks Microsoft for new versions of every app (~10 s).")
+        self._toggle(lay, "check_on_start", "Check for updates when Storely opens", "Asks Microsoft for new versions of every app (~10 s).")
         self._toggle(lay, "close_apps", "Close apps automatically to update them", "Otherwise you're asked when an app is open.")
         self._toggle(lay, "keep_rollback", "Keep the previous version so I can roll back",
                      "Saves each installed package (uses disk space - Codex is ~900 MB).",
@@ -696,15 +696,15 @@ class ManagePages:
         theme.setCurrentIndex({"system": 0, "dark": 1, "light": 2}.get(s.get("theme", "system"), 0))
         theme.currentIndexChanged.connect(lambda i: self._set("theme", ["system", "dark", "light"][i]))
         th.addWidget(theme)
-        th.addWidget(label("  takes effect the next time Unjammed opens", "Muted"))
+        th.addWidget(label("  takes effect the next time Storely opens", "Muted"))
         th.addStretch()
         lay.addLayout(th)
 
-        lay.addWidget(label("Unjammed updates", "H2"))
+        lay.addWidget(label("Storely updates", "H2"))
         ur = QHBoxLayout()
         rel = getattr(self, "self_update", None)
-        ur.addWidget(label(f"Unjammed {rel.version} is available." if rel else
-                           f"You have Unjammed {__version__}. New versions come from GitHub, checked against Unjammed's "
+        ur.addWidget(label(f"Storely {rel.version} is available." if rel else
+                           f"You have Storely {__version__}. New versions come from GitHub, checked against Storely's "
                            "own signature before they install.", "Muted", wrap=True), 1)
         if rel:
             gi = button("Install now", accent=True)
@@ -719,7 +719,7 @@ class ManagePages:
             cn.clicked.connect(lambda: self.check_self_update(manual=True))
             ur.addWidget(cn)
         lay.addLayout(ur)
-        upd = QCheckBox("Tell me when there's a new Unjammed")
+        upd = QCheckBox("Tell me when there's a new Storely")
         upd.setChecked(s.get("self_update", "notify") != "off")
         upd.toggled.connect(lambda v: self._set("self_update", "notify" if v else "off"))
         lay.addWidget(upd)
@@ -748,22 +748,22 @@ class ManagePages:
             lay.addWidget(label("Store links", "H2"))
             r = QHBoxLayout()
             r.addWidget(label("Links to the Microsoft Store (on websites, in Settings, in other apps) open in "
-                              + ("Unjammed." if store_links_ours() else "the Microsoft Store. Pick Unjammed for "
+                              + ("Storely." if store_links_ours() else "the Microsoft Store. Pick Storely for "
                                  "'ms-windows-store' to open them here instead."), "Muted", wrap=True), 1)
             b = button("Choose in Windows Settings...")
-            b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("ms-settings:defaultapps?registeredAppMachine=Unjammed")))
+            b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("ms-settings:defaultapps?registeredAppMachine=Storely")))
             r.addWidget(b)
             lay.addLayout(r)
         lay.addWidget(label("Files", "H2"))
-        b = button("Open Unjammed's data folder (logs, history, cache)")
+        b = button("Open Storely's data folder (logs, history, cache)")
         b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(DATA_DIR))))
         lay.addWidget(b, 0, Qt.AlignLeft)
         lay.addWidget(label("About", "H2"))
         bad = admin.untrusted_code()
-        lay.addWidget(label(f"Unjammed {__version__}  ·  Python {sys.version.split()[0]}  ·  PySide6 {PySide6.__version__}\n"
+        lay.addWidget(label(f"Storely {__version__}  ·  Python {sys.version.split()[0]}  ·  PySide6 {PySide6.__version__}\n"
                             f"Installed in {ROOT}\n"
                             + ("Admin actions: ready (only admins can change these files)." if not bad else
-                               "Admin actions: off - this copy can be changed without admin rights. Use the installed Unjammed.")
+                               "Admin actions: off - this copy can be changed without admin rights. Use the installed Storely.")
                             + "\nUses Microsoft's own Store catalogue and delivery servers; not affiliated with Microsoft.",
                             "Muted", wrap=True))
         lay.addStretch()

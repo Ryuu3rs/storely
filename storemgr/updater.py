@@ -28,13 +28,13 @@ from . import APP_NAME, DATA_DIR, __version__, secure
 from .download import Cancelled, file_digest
 
 PUBLIC_KEY = "ubvt+a62M+KViQMsqAg8PqL3P0ru7s65A/DzH/B/3rM="
-REPO = "Ryuu3rs/unjammed"
+REPO = "Ryuu3rs/storely"
 LATEST_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 ALLOWED_HOSTS = frozenset({"github.com", "api.github.com", "objects.githubusercontent.com",
                            "release-assets.githubusercontent.com"})
 UPDATE_DIR = DATA_DIR / "updates"
 SUMS_NAME, SIG_NAME = "SHA256SUMS", "SHA256SUMS.sig"
-INSTALLER_RE = re.compile(r"Unjammed-Setup-(\d+\.\d+\.\d+)\.0-(x64|arm64)\.exe")
+INSTALLER_RE = re.compile(r"Storely-Setup-(\d+\.\d+\.\d+)\.0-(x64|arm64)\.exe")
 INSTALLER_ARGS = "/SP- /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS"
 MAX_REDIRECTS = 5
 MAX_SMALL = 64 * 1024
@@ -118,7 +118,7 @@ def parse_release(data: dict, current: str = __version__, arch: str | None = Non
         return None
     ver, arch = ".".join(map(str, version)), arch or machine_arch()
     assets = {a.get("name"): a for a in data.get("assets") or [] if isinstance(a, dict)}
-    inst = assets.get(f"Unjammed-Setup-{ver}.0-{arch}.exe")
+    inst = assets.get(f"Storely-Setup-{ver}.0-{arch}.exe")
     sums, sig = assets.get(SUMS_NAME), assets.get(SIG_NAME)
     if not (inst and sums and sig):
         return None
@@ -258,13 +258,13 @@ def _shell_open(file: str, params: str, cwd: str) -> int:
 
 
 def install(path: Path) -> None:
-    """Start a downloaded installer silently (it shows its own admin prompt and closes Unjammed); the caller should
+    """Start a downloaded installer silently (it shows its own admin prompt and closes Storely); the caller should
     quit right after."""
     root = UPDATE_DIR.resolve()
     p = Path(path).resolve()
     if (p.parent != root or not INSTALLER_RE.fullmatch(p.name) or not p.is_file() or secure.is_reparse(path)
             or secure.is_reparse(UPDATE_DIR)):
-        raise RuntimeError(f"not a downloaded Unjammed update: {path}")
+        raise RuntimeError(f"not a downloaded Storely update: {path}")
     err = _shell_open(str(p), INSTALLER_ARGS, str(root))
     if err:
         raise RuntimeError("the update was cancelled at the admin prompt" if err == 1223

@@ -242,10 +242,10 @@ def move(full_name: str, volume_path: str, timeout: float = 3600) -> tuple[bool,
     return True, f"moved to {target.label}"
 
 
-# ----------------------------------------------------------------------------- Unjammed's own install target
+# ----------------------------------------------------------------------------- Storely's own install target
 
 def preferred(vols: list[Volume] | None = None) -> Volume | None:
-    """The drive the user picked in Unjammed for new installs (None = Windows' default)."""
+    """The drive the user picked in Storely for new installs (None = Windows' default)."""
     try:
         path = json.loads(PREF_FILE.read_text(encoding="utf-8")).get("path") or ""
     except (OSError, ValueError, AttributeError):
@@ -256,7 +256,7 @@ def preferred(vols: list[Volume] | None = None) -> Volume | None:
 
 
 def set_preferred(volume_path: str | None) -> None:
-    """Pick one of Windows' app drives for Unjammed's fresh installs (None = follow Windows' default)."""
+    """Pick one of Windows' app drives for Storely's fresh installs (None = follow Windows' default)."""
     if volume_path:
         v = next((v for v in volumes() if v.path.lower() == volume_path.lower()), None)
         if v is None or not v.usable:

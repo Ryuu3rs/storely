@@ -1,9 +1,9 @@
 name: Release
 
 # Push a tag like v1.2.0. Both installers are built natively (PyInstaller can't cross-build), then attached to a
-# DRAFT release. Updates are signed with Unjammed's own Ed25519 key, which normally stays on the maintainer's PC:
+# DRAFT release. Updates are signed with Storely's own Ed25519 key, which normally stays on the maintainer's PC:
 # run `python tools/sign_release.py --publish v1.2.0` there to sign and publish. If the repository has the
-# UNJAMMED_SIGNING_KEY secret, this workflow signs and publishes by itself.
+# STORELY_SIGNING_KEY secret, this workflow signs and publishes by itself.
 
 on:
   push:
@@ -35,12 +35,12 @@ jobs:
       - name: Version matches tag
         shell: pwsh
         run: |
-          $v = (& dist\Unjammed\unjammed-cli.exe --version) -replace '^Unjammed ', ''
+          $v = (& dist\Storely\storely-cli.exe --version) -replace '^Storely ', ''
           if ("v$v" -ne "${{ github.ref_name }}") { throw "built $v but the tag is ${{ github.ref_name }}" }
       - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.arch }}
-          path: dist/Unjammed-Setup-*-${{ matrix.arch }}.exe
+          path: dist/Storely-Setup-*-${{ matrix.arch }}.exe
           if-no-files-found: error
 
   release:
@@ -61,14 +61,14 @@ jobs:
           $v = "${{ github.ref_name }}".TrimStart('v')
           $text = Get-Content CHANGELOG.md -Raw
           $m = [regex]::Match($text, "(?ms)^## \[?$([regex]::Escape($v))\]?.*?\r?\n(.*?)(?=^## |\z)")
-          ($m.Success ? $m.Groups[1].Value.Trim() : "Unjammed $v") | Set-Content notes.md
+          ($m.Success ? $m.Groups[1].Value.Trim() : "Storely $v") | Set-Content notes.md
       - name: Sign (only if the key is stored here)
         id: sign
         shell: pwsh
         env:
-          UNJAMMED_SIGNING_KEY: ${{ secrets.UNJAMMED_SIGNING_KEY }}
+          STORELY_SIGNING_KEY: ${{ secrets.STORELY_SIGNING_KEY }}
         run: |
-          if (-not $env:UNJAMMED_SIGNING_KEY) { "signed=false" >> $env:GITHUB_OUTPUT; exit 0 }
+          if (-not $env:STORELY_SIGNING_KEY) { "signed=false" >> $env:GITHUB_OUTPUT; exit 0 }
           python -m pip install --require-hashes -r requirements.lock
           python tools/release_key.py --from-env
           python tools/sign_release.py dist
@@ -80,4 +80,4 @@ jobs:
         run: |
           $files = Get-ChildItem dist -File | ForEach-Object FullName
           $draft = if ("${{ steps.sign.outputs.signed }}" -eq "true") { @() } else { @("--draft") }
-          gh release create "${{ github.ref_name }}" @files --title "Unjammed ${{ github.ref_name }}" --notes-file notes.md @draft
+          gh release create "${{ github.ref_name }}" @files --title "Storely ${{ github.ref_name }}" --notes-file notes.md @draft

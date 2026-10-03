@@ -1,7 +1,7 @@
-"""The admin / SYSTEM half of Unjammed.
+"""The admin / SYSTEM half of Storely.
 
-  Unjammed.exe --elevated <action> --job <id> ...      started through one UAC prompt by storemgr.admin
-  Unjammed.exe --system-task <action> --job <id> ...   one-off SYSTEM task started by the elevated half
+  Storely.exe --elevated <action> --job <id> ...      started through one UAC prompt by storemgr.admin
+  Storely.exe --system-task <action> --job <id> ...   one-off SYSTEM task started by the elevated half
 
 No scripts are written anywhere: SYSTEM runs this same installed program, which only admins can modify. Every
 input is validated, and all work files/results live in a folder only SYSTEM + Administrators can write to."""
@@ -134,7 +134,7 @@ def _system_task(action: str, job: str, extra: list[str], timeout: float) -> dic
     if bad:
         raise PermissionError(f"won't run a SYSTEM task from a copy others can modify: {bad[0]}")
     cmd = launcher("--system-task", action, "--job", job, *extra)
-    name = f"Unjammed-{action}-{job[:8]}"
+    name = f"Storely-{action}-{job[:8]}"
     out = RESULTS_DIR / f"{job}.system.json"
     r = ps(f"$a = New-ScheduledTaskAction -Execute {q(cmd[0])} -Argument {q(subprocess.list2cmdline(cmd[1:]))};"
            f" $p = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest;"

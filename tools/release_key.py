@@ -1,8 +1,8 @@
-"""Makes the Ed25519 key that signs Unjammed releases (see sign_release.py). The private key stays outside the repo,
-in %USERPROFILE%\\.unjammed-release\\ed25519_private.pem; paste the printed public key into storemgr/updater.py PUBLIC_KEY.
+"""Makes the Ed25519 key that signs Storely releases (see sign_release.py). The private key stays outside the repo,
+in %USERPROFILE%\\.storely-release\\ed25519_private.pem; paste the printed public key into storemgr/updater.py PUBLIC_KEY.
 Run: .venv\\Scripts\\python.exe tools\\release_key.py              new key (refuses to replace an existing one)
      .venv\\Scripts\\python.exe tools\\release_key.py --show       public key of the existing key file
-     python tools/release_key.py --from-env                       CI: public key of the PEM in UNJAMMED_SIGNING_KEY,
+     python tools/release_key.py --from-env                       CI: public key of the PEM in STORELY_SIGNING_KEY,
                                                                   fails if it isn't the one built into the app"""
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-KEY_FILE = Path(os.environ.get("USERPROFILE", str(Path.home()))) / ".unjammed-release" / "ed25519_private.pem"
-ENV_VAR = "UNJAMMED_SIGNING_KEY"
+KEY_FILE = Path(os.environ.get("USERPROFILE", str(Path.home()))) / ".storely-release" / "ed25519_private.pem"
+ENV_VAR = "STORELY_SIGNING_KEY"
 UPDATER = Path(__file__).resolve().parent.parent / "storemgr" / "updater.py"
 
 
@@ -38,7 +38,7 @@ def _from_pem(pem: bytes, where: str) -> Ed25519PrivateKey:
 
 
 def load_private_key() -> Ed25519PrivateKey:
-    """The signing key from UNJAMMED_SIGNING_KEY if set (CI), else from KEY_FILE."""
+    """The signing key from STORELY_SIGNING_KEY if set (CI), else from KEY_FILE."""
     pem = os.environ.get(ENV_VAR, "").strip()
     if pem:
         return _from_pem(pem.encode() + b"\n", ENV_VAR)
@@ -68,7 +68,7 @@ def create() -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Create or inspect the Unjammed release-signing key.")
+    ap = argparse.ArgumentParser(description="Create or inspect the Storely release-signing key.")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--show", action="store_true", help="print the public key of the existing key file")
     g.add_argument("--from-env", action="store_true", help=f"use the PEM in {ENV_VAR} and check it matches the app")

@@ -106,7 +106,7 @@ def test_admin_refuses_from_a_modifiable_copy(monkeypatch):
     called = []
     monkeypatch.setattr(admin._shell32, "ShellExecuteExW", lambda *a: called.append(a))
     r = admin.unjam("Microsoft.Todos_8wekyb3d8bbwe")
-    assert not r["ok"] and "installed Unjammed" in r["errors"][0] and not called
+    assert not r["ok"] and "installed Storely" in r["errors"][0] and not called
 
 
 def test_admin_validates_family_before_prompting(monkeypatch):

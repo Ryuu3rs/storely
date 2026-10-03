@@ -1,6 +1,6 @@
-"""Signs a release: writes SHA256SUMS (hash + two spaces + name for every Unjammed-Setup-*.exe in <dir>) and
+"""Signs a release: writes SHA256SUMS (hash + two spaces + name for every Storely-Setup-*.exe in <dir>) and
 SHA256SUMS.sig (base64 Ed25519 signature of SHA256SUMS). Upload both next to the installers.
-Key: UNJAMMED_SIGNING_KEY (PEM, for CI) if set, else %USERPROFILE%\\.unjammed-release\\ed25519_private.pem.
+Key: STORELY_SIGNING_KEY (PEM, for CI) if set, else %USERPROFILE%\\.storely-release\\ed25519_private.pem.
 Run: .venv\\Scripts\\python.exe tools\\sign_release.py dist"""
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_key import app_public_key, load_private_key, public_b64
 
-NAME_RE = re.compile(r"Unjammed-Setup-\d+\.\d+\.\d+\.0-(x64|arm64)\.exe")     # same as updater.INSTALLER_RE
+NAME_RE = re.compile(r"Storely-Setup-\d+\.\d+\.\d+\.0-(x64|arm64)\.exe")     # same as updater.INSTALLER_RE
 
 
 def sha256(path: Path) -> str:
@@ -35,7 +35,7 @@ def publish(tag: str) -> None:
     if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
         sys.exit("usage: sign_release.py --publish vX.Y.Z")
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(["gh", "release", "download", tag, "--pattern", "Unjammed-Setup-*.exe", "--dir", tmp], check=True)
+        subprocess.run(["gh", "release", "download", tag, "--pattern", "Storely-Setup-*.exe", "--dir", tmp], check=True)
         sign(Path(tmp))
         subprocess.run(["gh", "release", "upload", tag, str(Path(tmp) / "SHA256SUMS"), str(Path(tmp) / "SHA256SUMS.sig"),
                         "--clobber"], check=True)
@@ -48,17 +48,17 @@ def main() -> None:
         publish(sys.argv[2])
         return
     if len(sys.argv) != 2 or not Path(sys.argv[1]).is_dir():
-        sys.exit("usage: sign_release.py <folder with the Unjammed-Setup-*.exe installers> | --publish vX.Y.Z")
+        sys.exit("usage: sign_release.py <folder with the Storely-Setup-*.exe installers> | --publish vX.Y.Z")
     sign(Path(sys.argv[1]))
 
 
 def sign(folder: Path) -> None:
-    files = sorted(p for p in folder.glob("Unjammed-Setup-*.exe") if p.is_file())
+    files = sorted(p for p in folder.glob("Storely-Setup-*.exe") if p.is_file())
     if not files:
-        sys.exit(f"no Unjammed-Setup-*.exe in {folder}")
+        sys.exit(f"no Storely-Setup-*.exe in {folder}")
     bad = [p.name for p in files if not NAME_RE.fullmatch(p.name)]
     if bad:
-        sys.exit(f"unexpected installer names (want Unjammed-Setup-X.Y.Z.0-x64|arm64.exe): {', '.join(bad)}")
+        sys.exit(f"unexpected installer names (want Storely-Setup-X.Y.Z.0-x64|arm64.exe): {', '.join(bad)}")
 
     key = load_private_key()
     pub = public_b64(key)

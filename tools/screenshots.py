@@ -1,4 +1,4 @@
-"""Renders Unjammed's pages to PNGs for the README, using this PC's real data, without showing a window.
+"""Renders Storely's pages to PNGs for the README, using this PC's real data, without showing a window.
 
   .venv\\Scripts\\python.exe tools\\screenshots.py --out docs\\screenshots --theme dark home updates app:9WZDNCRFJ364
 

@@ -2,7 +2,7 @@
 
 ## [1.2.0] - 2026-10-03
 
-First public release, and a new name: My Store is now **Unjammed**. Installing it upgrades My Store in place and
+First public release, and a new name: My Store is now **Storely**. Installing it upgrades My Store in place and
 keeps your settings, history, holds and wishlist.
 
 ### New
@@ -19,12 +19,12 @@ keeps your settings, history, holds and wishlist.
 - **Preinstalled extras**: remove Clipchamp, News, Candy Crush and other preinstalled apps for your account, and put
   them back any time (Health).
 - **Choose the drive** new apps install to, and move installed apps to another drive.
-- **Self-updating**: Unjammed tells you about new versions and installs them after checking its own signature.
-- **Store links**: links to the Microsoft Store can open in Unjammed instead (optional, you choose it in Windows
+- **Self-updating**: Storely tells you about new versions and installs them after checking its own signature.
+- **Store links**: links to the Microsoft Store can open in Storely instead (optional, you choose it in Windows
   Settings). Paste a Store web link into search to open that app.
 - **Light theme**, following Windows or your choice.
 - **Notifications with buttons** ("Update all", "Open"), quiet hours, and a wait-for-the-charger option.
-- **Service self-test** on the Health page; `unjammed-cli selftest`, and `--json` output for scripting.
+- **Service self-test** on the Health page; `storely-cli selftest`, and `--json` output for scripting.
 - **Native ARM64 build** alongside x64.
 
 ### Fixed

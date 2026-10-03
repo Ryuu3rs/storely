@@ -47,7 +47,7 @@ def test_uncaught_errors_are_logged(caplog):
     old = sys.excepthook
     try:
         diag.install_crash_handlers(gui=False)
-        with caplog.at_level(logging.CRITICAL, logger="unjammed"):
+        with caplog.at_level(logging.CRITICAL, logger="storely"):
             try:
                 raise ValueError("boom")
             except ValueError:

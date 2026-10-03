@@ -37,7 +37,7 @@ CHANGELOG_FILE = DATA_DIR / "changelog.json"
 
 
 def _changelog(app, old: str, new: str, pkg) -> None:
-    """Per-app record of what Unjammed installed and when - the 'What's new' history."""
+    """Per-app record of what Storely installed and when - the 'What's new' history."""
     try:
         data = json.loads(CHANGELOG_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -395,8 +395,8 @@ class Engine:
             shutil.copyfile(p, dest)
             out.append(dest)
         (folder / f"{app.title} - how to install.txt").write_text(
-            f"{app.title} {pkg.version_str}, saved by Unjammed.\n\nInstall the frameworks first, then the app: in "
-            "Unjammed use Library > Install from folder, or double-click each package (needs App Installer).\n\n"
+            f"{app.title} {pkg.version_str}, saved by Storely.\n\nInstall the frameworks first, then the app: in "
+            "Storely use Library > Install from folder, or double-click each package (needs App Installer).\n\n"
             + "\n".join(p.name for p in out) + "\n", encoding="utf-8")
         return out
 

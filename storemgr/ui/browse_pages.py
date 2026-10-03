@@ -443,7 +443,7 @@ class BrowsePages:
                 lines.append(f"New version {a.latest.version_str} (you have {a.current_str}) - {fmt_size(a.latest.size)} download")
             hist = engine_mod.changelog(fam) if fam else []
             for h in reversed(hist[-5:]):
-                lines.append(f"{datetime.fromtimestamp(h['t']):%d %b %Y %H:%M}  -  Unjammed updated it {h['from'] or 'new'} → {h['to']}")
+                lines.append(f"{datetime.fromtimestamp(h['t']):%d %b %Y %H:%M}  -  Storely updated it {h['from'] or 'new'} → {h['to']}")
             if not lines:
                 lines.append("Microsoft doesn't publish release notes for this app.")
             facts.addWidget(label("\n".join(lines), "Muted", wrap=True))
@@ -503,9 +503,9 @@ class BrowsePages:
         terms = "\n".join(f"• {lbl}: {(txt or url)[:200]}" for lbl, txt, url in d.agreements if lbl) or "None listed."
         inst = d.installer
         note = "" if inst and inst.silent else "\n\nThis installer has no silent mode - its own window will appear."
-        msg = (f"Install {d.title} {d.version}?\n\nThis app uses a desktop installer. Unjammed downloads it from the "
+        msg = (f"Install {d.title} {d.version}?\n\nThis app uses a desktop installer. Storely downloads it from the "
                f"address in the Store's recipe and only runs it if its SHA-256 matches.{note}\n\nPublisher terms:\n{terms}")
-        if QMessageBox.question(self, "Unjammed", msg) == QMessageBox.Yes:
+        if QMessageBox.question(self, "Storely", msg) == QMessageBox.Yes:
             self.queue.add_desktop(d, p.icon_url if p else None)
             self.statusBar().showMessage(f"{d.title} added to Downloads", 6000)
             self.render_current()

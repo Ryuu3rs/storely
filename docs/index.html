@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Storely - every Windows app, never stuck</title>
+    <meta
+      name="description"
+      content="Storely is a free Microsoft Store replacement that never gets stuck. Installs and updates Store apps and your other programs, warns about new permissions, works offline. No account, no tracking."
+    />
+    <meta
+      property="og:title"
+      content="Storely - every Windows app, never stuck"
+    />
+    <meta
+      property="og:description"
+      content="A free Microsoft Store replacement that never gets stuck, and updates your other programs too."
+    />
+    <meta
+      property="og:image"
+      content="https://ryuu3rs.github.io/storely/banner.png"
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="icon.png" />
+    <style>
+      :root {
+        --bg: #f6f8fc;
+        --surface: #ffffff;
+        --text: #141821;
+        --muted: #5b6475;
+        --border: #e2e7f0;
+        --accent: #1f5fd6;
+        --accent-2: #0b1e48;
+        --good: #128a3e;
+        --bad: #c42b1c;
+        --shadow: 0 18px 50px rgba(17, 38, 89, 0.14);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0e1220;
+          --surface: #161b2c;
+          --text: #eef2fb;
+          --muted: #a3acc2;
+          --border: #263049;
+          --accent: #5fb2ff;
+          --accent-2: #9fd8ff;
+          --good: #5fd28a;
+          --bad: #ff8f99;
+          --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.6 "Segoe UI Variable Text",
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      .wrap {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      header.top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 0;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 20px;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .brand img {
+        width: 34px;
+        height: 34px;
+      }
+      nav a {
+        margin-left: 22px;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 15px;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      .hero {
+        text-align: center;
+        padding: 48px 0 24px;
+      }
+      .hero h1 {
+        font:
+          700 clamp(34px, 6vw, 58px)/1.08 "Segoe UI Variable Display",
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+        margin: 0 0 16px;
+        letter-spacing: -0.5px;
+      }
+      .hero h1 span {
+        background: linear-gradient(90deg, #1f5fd6, #4fc3ff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .hero p.lead {
+        font-size: clamp(17px, 2.2vw, 21px);
+        color: var(--muted);
+        max-width: 720px;
+        margin: 0 auto 28px;
+      }
+      .cta {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        text-decoration: none;
+        font-size: 17px;
+      }
+      .btn.primary {
+        background: linear-gradient(135deg, #1f5fd6, #2f80ff);
+        color: #fff;
+        box-shadow: 0 8px 24px rgba(31, 95, 214, 0.35);
+      }
+      .btn.primary:hover {
+        filter: brightness(1.07);
+      }
+      .btn.ghost {
+        border: 1px solid var(--border);
+        color: var(--text);
+        background: var(--surface);
+      }
+      .small {
+        font-size: 14px;
+        color: var(--muted);
+        margin-top: 12px;
+      }
+      .demo {
+        margin: 36px auto 0;
+        max-width: 980px;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+      }
+      .demo img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      section {
+        padding: 64px 0 8px;
+      }
+      h2 {
+        font:
+          700 clamp(26px, 3.6vw, 36px)/1.2 "Segoe UI Variable Display",
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+        margin: 0 0 10px;
+        text-align: center;
+      }
+      .sub {
+        text-align: center;
+        color: var(--muted);
+        max-width: 680px;
+        margin: 0 auto 32px;
+      }
+      .problem {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 22px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 18px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15.5px;
+      }
+      .compare {
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 620px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--border);
+        font-size: 15.5px;
+        vertical-align: top;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      th {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--muted);
+      }
+      th.us,
+      td.us {
+        background: rgba(31, 95, 214, 0.07);
+      }
+      .yes {
+        color: var(--good);
+        font-weight: 600;
+      }
+      .no {
+        color: var(--bad);
+        font-weight: 600;
+      }
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+        gap: 22px;
+      }
+      .feature img {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        display: block;
+        margin-bottom: 14px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 26px;
+      }
+      .chip {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 7px 14px;
+        font-size: 14.5px;
+        color: var(--muted);
+      }
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+        counter-reset: s;
+      }
+      .steps .card {
+        position: relative;
+        padding-top: 46px;
+      }
+      .steps .card::before {
+        counter-increment: s;
+        content: counter(s);
+        position: absolute;
+        top: 16px;
+        left: 22px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 700;
+        font-size: 14px;
+        display: grid;
+        place-items: center;
+      }
+      details {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+      }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      details p {
+        color: var(--muted);
+        margin: 10px 0 2px;
+      }
+      footer {
+        padding: 56px 0 40px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      @media (max-width: 640px) {
+        nav a:not(.keep) {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <a class="brand" href="#"><img src="icon.png" alt="" />Storely</a>
+        <nav>
+          <a href="#why">Why</a><a href="#compare">Compare</a
+          ><a href="#features">Features</a><a href="#faq">FAQ</a>
+          <a class="keep" href="https://github.com/Ryuu3rs/storely">GitHub</a>
+        </nav>
+      </header>
+
+      <div class="hero">
+        <h1>Every Windows app.<br /><span>Never stuck.</span></h1>
+        <p class="lead">
+          Storely installs and updates your apps from the same Microsoft servers
+          as the Store, but it never gets stuck on "Pending". It updates your
+          other programs too, and warns you before an update takes new
+          permissions.
+        </p>
+        <div class="cta">
+          <a
+            class="btn primary"
+            href="https://github.com/Ryuu3rs/storely/releases/latest"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.4 1.2L21 21v-8.4h-9.6zm0-15.4v7.2H21V3z"
+              />
+            </svg>
+            Download for Windows</a
+          >
+          <a class="btn ghost" href="https://github.com/Ryuu3rs/storely"
+            >View on GitHub</a
+          >
+        </div>
+        <p class="small">
+          Free and open source · Windows 10 and 11 · x64 and ARM64 · No account,
+          no tracking
+        </p>
+        <div class="demo">
+          <img
+            src="demo.gif"
+            alt="Storely: updates for Store apps and other programs, search, an app page showing its permissions, and the health page"
+            width="960"
+            height="600"
+          />
+        </div>
+      </div>
+
+      <section id="why">
+        <h2>Why the Store gets stuck</h2>
+        <p class="sub">
+          It's usually not your internet. Windows installs Store apps through
+          one queue, and three things go wrong with it.
+        </p>
+        <div class="problem">
+          <div class="card">
+            <h3>One stuck job blocks everything</h3>
+            <p>
+              When an install hangs, every download behind it waits on "Pending"
+              forever.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Restarting doesn't help</h3>
+            <p>
+              Windows saves the queue and reloads the stuck job at every boot.
+            </p>
+          </div>
+          <div class="card">
+            <h3>The Store fights itself</h3>
+            <p>
+              It starts its own copy of an update that's already installing, and
+              the two cancel each other out.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Storely fixes all three</h3>
+            <p>
+              One install at a time across the PC, a jam detector, and an Unjam
+              button that clears the stuck jobs properly.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="compare">
+        <h2>Storely vs the Microsoft Store</h2>
+        <p class="sub">
+          Everything most people use the Store for, plus the things it never got
+          round to.
+        </p>
+        <div class="compare">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th class="us">Storely</th>
+                <th>Microsoft Store</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Stuck on "Pending" or updates that never finish</td>
+                <td class="us">
+                  <span class="yes">✓</span> One at a time, plus Unjam
+                </td>
+                <td>
+                  <span class="no">✕</span> Can stay stuck, even after a restart
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Updates your other programs (Chrome, 7-Zip, Steam, Zoom...)
+                </td>
+                <td class="us">
+                  <span class="yes">✓</span> Same page, through winget
+                </td>
+                <td><span class="no">✕</span></td>
+              </tr>
+              <tr>
+                <td>Warns when an update wants new permissions</td>
+                <td class="us"><span class="yes">✓</span> Waits for your OK</td>
+                <td><span class="no">✕</span> Installs silently</td>
+              </tr>
+              <tr>
+                <td>Install an older version of an app</td>
+                <td class="us"><span class="yes">✓</span></td>
+                <td><span class="no">✕</span></td>
+              </tr>
+              <tr>
+                <td>Hold one app, or skip one bad version</td>
+                <td class="us"><span class="yes">✓</span> Per app</td>
+                <td><span class="no">✕</span> All or nothing</td>
+              </tr>
+              <tr>
+                <td>Pause, resume, reorder downloads, speed limit</td>
+                <td class="us"><span class="yes">✓</span></td>
+                <td><span class="no">✕</span></td>
+              </tr>
+              <tr>
+                <td>Save an app to a USB stick for an offline PC</td>
+                <td class="us"><span class="yes">✓</span></td>
+                <td><span class="no">✕</span></td>
+              </tr>
+              <tr>
+                <td>Remove preinstalled extras (Candy Crush, Clipchamp...)</td>
+                <td class="us">
+                  <span class="yes">✓</span> In one go, with Put back
+                </td>
+                <td>One at a time, in Settings</td>
+              </tr>
+              <tr>
+                <td>Paid apps and Game Pass</td>
+                <td class="us">
+                  <span class="no">✕</span> Needs a Store licence
+                </td>
+                <td><span class="yes">✓</span></td>
+              </tr>
+              <tr>
+                <td>Free and open source, no account, no tracking</td>
+                <td class="us"><span class="yes">✓</span></td>
+                <td>-</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="features">
+        <h2>A closer look</h2>
+        <p class="sub">
+          The whole Store, a proper download queue, and the health tools Windows
+          never gave you.
+        </p>
+        <div class="features">
+          <div class="feature card">
+            <img
+              src="screenshots/light-updates.png"
+              alt="Updates page"
+              loading="lazy"
+            />
+            <h3>Every update in one place</h3>
+            <p>
+              Store apps, the Windows runtimes they depend on, and your other
+              programs. "Update all" really means all.
+            </p>
+          </div>
+          <div class="feature card">
+            <img
+              src="screenshots/dark-app-9NCBCSZSJRSB.png"
+              alt="An app page"
+              loading="lazy"
+            />
+            <h3>The whole Store, and what each app can access</h3>
+            <p>
+              Charts, categories, search, reviews and screenshots, plus a plain
+              list of each app's permissions.
+            </p>
+          </div>
+          <div class="feature card">
+            <img
+              src="screenshots/dark-health.png"
+              alt="Health page"
+              loading="lazy"
+            />
+            <h3>Spots a jam, clears it</h3>
+            <p>
+              Checks the installer every few minutes, stops the Store fighting
+              it, and cleans up leftovers.
+            </p>
+          </div>
+          <div class="feature card">
+            <img
+              src="screenshots/light-settings.png"
+              alt="Settings"
+              loading="lazy"
+            />
+            <h3>Quietly in the background</h3>
+            <p>
+              Optional updates at sign-in and every 6 hours, as you and never as
+              admin, with quiet hours and wait-for-the-charger.
+            </p>
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip">Light and dark themes</span
+          ><span class="chip">Holds and rollback</span
+          ><span class="chip">Choose the install drive</span>
+          <span class="chip">Move apps between drives</span
+          ><span class="chip">Store links open in Storely</span
+          ><span class="chip">Move all your apps to a new PC</span>
+          <span class="chip">Updates itself, signed</span
+          ><span class="chip">Command line with JSON</span>
+        </div>
+      </section>
+
+      <section id="install">
+        <h2>Install in a minute</h2>
+        <p class="sub">The installer works like any other Windows program.</p>
+        <div class="steps">
+          <div class="card">
+            <h3>Download</h3>
+            <p>
+              <a href="https://github.com/Ryuu3rs/storely/releases/latest"
+                >Storely-Setup-...-x64.exe</a
+              >
+              for most PCs, <b>-arm64</b> for Snapdragon laptops.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Run it</h3>
+            <p>
+              If Windows says "Windows protected your PC", choose
+              <b>More info &gt; Run anyway</b>. The installer isn't code-signed
+              because signing costs hundreds a year, and Storely is free.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Done</h3>
+            <p>
+              Next, Next, Install. Storely appears in your Start menu
+              (right-click it to pin it) and keeps itself up to date.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq">
+        <h2>Questions</h2>
+        <p class="sub">&nbsp;</p>
+        <details>
+          <summary>Is it safe?</summary>
+          <p>
+            Store apps only come from Microsoft's own servers and are checked
+            against Microsoft's fingerprint and signature before they install.
+            Other programs come through winget, Microsoft's package manager,
+            which checks each installer too. The few admin tasks use the normal
+            Windows prompt and only run code that can't be changed without admin
+            rights. All the code is
+            <a href="https://github.com/Ryuu3rs/storely">public</a>.
+          </p>
+        </details>
+        <details>
+          <summary>Do I have to remove the Microsoft Store?</summary>
+          <p>
+            No. They live side by side, and Storely can switch off the Store's
+            own automatic updates so the two don't trip over each other.
+          </p>
+        </details>
+        <details>
+          <summary>Why can't I get paid apps?</summary>
+          <p>
+            Buying apps and Game Pass need a licence from your Microsoft
+            account, which only the Store can get. Free apps, which is most of
+            the Store, work.
+          </p>
+        </details>
+        <details>
+          <summary>Is it allowed?</summary>
+          <p>
+            Storely uses the same public services the Store app does, only
+            installs Microsoft-signed packages from Microsoft, and doesn't get
+            around any licensing. It's an independent project, not made or
+            endorsed by Microsoft.
+          </p>
+        </details>
+        <details>
+          <summary>What does it collect?</summary>
+          <p>
+            Nothing. Your settings stay on your PC. Storely only talks to
+            Microsoft's Store and download servers, winget's sources, an app's
+            own download server when you install one, and GitHub to check for a
+            new Storely.
+          </p>
+        </details>
+      </section>
+
+      <footer>
+        <p>
+          <a
+            class="btn primary"
+            href="https://github.com/Ryuu3rs/storely/releases/latest"
+            >Download Storely</a
+          >
+        </p>
+        <p>
+          Free and open source under the MIT licence ·
+          <a href="https://github.com/Ryuu3rs/storely">GitHub</a> ·
+          <a href="https://github.com/Ryuu3rs/storely/issues"
+            >Report a problem</a
+          >
+        </p>
+        <p>
+          Storely is an independent project, not affiliated with or endorsed by
+          Microsoft. Microsoft, Windows and Microsoft Store are trademarks of
+          the Microsoft group of companies.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

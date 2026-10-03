@@ -98,7 +98,7 @@ def _run(args: list[str], timeout: float) -> subprocess.CompletedProcess:
 
 
 def list_upgrades(include_unknown: bool = False, timeout: float = 180) -> list[Upgrade]:
-    """Programs winget can update. Store ('msstore') rows are left to Unjammed's own Store engine."""
+    """Programs winget can update. Store ('msstore') rows are left to Storely's own Store engine."""
     try:
         r = _run(["upgrade", *COMMON, *(["--include-unknown"] if include_unknown else [])], timeout)
     except subprocess.TimeoutExpired:

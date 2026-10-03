@@ -148,7 +148,7 @@ def remove(entry: Entry, installed: list[winapps.Installed] | None = None) -> tu
     """Remove a preset app for this user (no admin) and remember it for 'Put back'."""
     known = preset(entry.family)
     if known is None or known != entry:
-        return False, "not one of Unjammed's removable presets"
+        return False, "not one of Storely's removable presets"
     if not winapps.FAMILY_RE.match(entry.family) or protected(entry.family):
         return False, f"{entry.title} is part of Windows and is not removed"
     pkgs = _installed_main(installed if installed is not None else winapps.installed(), entry.family)
@@ -192,7 +192,7 @@ def _record(entry: Entry, version: str) -> None:
 
 
 def removed() -> list[dict]:
-    """What Unjammed removed, newest first: [{family, title, product_id, group, version, t}]."""
+    """What Storely removed, newest first: [{family, title, product_id, group, version, t}]."""
     return sorted((v for v in _load().values() if isinstance(v, dict) and v.get("product_id")),
                   key=lambda d: d.get("t", 0), reverse=True)
 

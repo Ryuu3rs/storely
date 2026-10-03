@@ -1,4 +1,4 @@
-"""Draws the Unjammed icon and writes assets/icon.png (512px) and assets/icon.ico (16-256px).
+"""Draws the Storely icon and writes assets/icon.png (512px) and assets/icon.ico (16-256px).
 Run: .venv\\Scripts\\python.exe tools\\make_icon.py   (needs Pillow for the multi-size .ico)"""
 
 from pathlib import Path

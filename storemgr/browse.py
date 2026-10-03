@@ -12,7 +12,7 @@ from . import __version__
 
 EDGE = "https://storeedgefd.dsx.mp.microsoft.com/v9.0"
 _s = requests.Session()
-_s.headers["User-Agent"] = f"Unjammed/{__version__}"
+_s.headers["User-Agent"] = f"Storely/{__version__}"
 _cache: dict[str, tuple[float, object]] = {}
 TTL = 30 * 60
 

@@ -15,7 +15,7 @@ from pathlib import Path
 from . import DATA_DIR, FROZEN, ROOT, health, launcher, perms, storequeue, winapps, winsys, wpm
 from .winapps import ps, q
 
-TASK = "Unjammed background updates"
+TASK = "Storely background updates"
 OLD_TASK = "My Store background updates"     # this app's name before 1.2
 STATUS_FILE = DATA_DIR / "background_status.json"
 
@@ -81,7 +81,7 @@ def status() -> dict:
 
 
 def run(settings: dict) -> dict:
-    """One background pass (`Unjammed.exe --auto`, or `cli.py auto`)."""
+    """One background pass (`Storely.exe --auto`, or `cli.py auto`)."""
     from .engine import Engine, NotYetOut
     from .browse import Browse
     t0 = time.time()
@@ -161,14 +161,14 @@ def run(settings: dict) -> dict:
     if waiting:
         lines.append(f"{waiting} update(s) waiting" + (f", {len(out['needs_ok'])} want new permissions" if out["needs_ok"] else ""))
     if out["needs_admin"]:
-        lines.append(f"{len(out['needs_admin'])} need admin - open Unjammed")
+        lines.append(f"{len(out['needs_admin'])} need admin - open Storely")
     if out["failed"]:
-        lines.append(f"{len(out['failed'])} failed - see Unjammed")
+        lines.append(f"{len(out['failed'])} failed - see Storely")
     if out["jam"] and "stuck" in out["jam"]:
-        lines.append(f"Windows' installer jammed ({out['jam']}) - open Unjammed > Health")
+        lines.append(f"Windows' installer jammed ({out['jam']}) - open Storely > Health")
     if lines and settings.get("notify", True):
         actions = [("Update all", winsys.action_link("update-all"))] if out["waiting"] or out["others"] else []
-        winsys.toast("Unjammed", "\n".join(lines), actions + [("Open", "unjammed://updates")], launch="unjammed://updates")
+        winsys.toast("Storely", "\n".join(lines), actions + [("Open", "storely://updates")], launch="storely://updates")
     return out
 
 

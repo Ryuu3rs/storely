@@ -1,9 +1,9 @@
-"""Unjammed entry point: the window, or with a flag one of its background roles.
+"""Storely entry point: the window, or with a flag one of its background roles.
 
-  Unjammed.exe [ms-windows-store://... link]    the window (or hand the link to the one already open)
-  Unjammed.exe --auto                           one background update pass (the scheduled task runs this)
-  Unjammed.exe --enable-background              register that scheduled task for the current user
-  Unjammed.exe --elevated ... / --system-task   admin / SYSTEM helper (started by Unjammed itself)"""
+  Storely.exe [ms-windows-store://... link]    the window (or hand the link to the one already open)
+  Storely.exe --auto                           one background update pass (the scheduled task runs this)
+  Storely.exe --enable-background              register that scheduled task for the current user
+  Storely.exe --elevated ... / --system-task   admin / SYSTEM helper (started by Storely itself)"""
 
 import sys
 

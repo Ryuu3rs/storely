@@ -1,121 +1,120 @@
-<p align="center"><img src="docs/banner.png" alt="Unjammed - the Microsoft Store, unjammed" width="860"></p>
+<p align="center"><img src="docs/banner.png" alt="Storely - every Windows app, never stuck" width="900"></p>
+
+<h3 align="center">The Microsoft Store, but it never gets stuck - and it updates everything else too.</h3>
 
 <p align="center">
-  <a href="https://github.com/Ryuu3rs/unjammed/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/Ryuu3rs/unjammed?label=download&color=1f5fd6"></a>
-  <a href="https://github.com/Ryuu3rs/unjammed/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Ryuu3rs/unjammed/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Windows 10 and 11, x64 and ARM64" src="https://img.shields.io/badge/Windows-10%20%7C%2011%20%C2%B7%20x64%20%7C%20ARM64-0078d4">
+  <a href="https://github.com/Ryuu3rs/storely/releases/latest"><img alt="Download Storely" src="https://img.shields.io/badge/Download-Storely%20for%20Windows-1f5fd6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  &nbsp;
+  <a href="https://ryuu3rs.github.io/storely/"><img alt="Website" src="https://img.shields.io/badge/Website-ryuu3rs.github.io%2Fstorely-2a2f3a?style=for-the-badge"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Ryuu3rs/storely/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Ryuu3rs/storely/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Windows 10 and 11, x64 and ARM64" src="https://img.shields.io/badge/Windows%2010%20%7C%2011-x64%20%7C%20ARM64-0078d4">
+  <img alt="Free" src="https://img.shields.io/badge/price-free-success">
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-green"></a>
 </p>
 
-**Unjammed installs and updates your Windows apps - Microsoft Store apps and your other programs - without the
-Microsoft Store getting stuck.** Free, open source, no account, no tracking.
+<p align="center"><img src="docs/demo.gif" alt="Storely in action: updates, search, an app page with its permissions, the health page" width="900"></p>
 
-## Why
+Downloads stuck on **Pending**? Updates that never finish? One frozen app blocking all the others? That's Windows'
+app installer jamming - and it reloads the stuck job every time you restart, so rebooting doesn't fix it.
 
-If your Store downloads sit at "Pending" forever, updates never finish, or one stuck app blocks all the others, it's
-usually not your internet. Windows' app installer works through one queue, and when a job in it hangs, everything
-behind it waits. Worse, Windows saves that queue and **reloads the stuck job at every restart**, so rebooting doesn't
-fix it. The Microsoft Store also likes to start its own copy of an update you're already installing, and the two
-cancel each other out.
+**Storely** gets your apps from the same Microsoft servers the Store uses, but installs them its own way: one at a
+time, with a jam detector and a one-click **Unjam** that clears stuck jobs for good. Then it keeps _everything_ up to
+date - Store apps and your other programs - from one page.
 
-Unjammed talks to the same Microsoft services the Store uses - the Store catalogue and the Windows Update servers
-that deliver the packages - but runs its own queue: one install at a time across the whole PC, with a jam detector
-and a one-click **Unjam** that clears the stuck jobs properly.
+## Storely vs the Microsoft Store
 
-## What you get
+|                                                             | **Storely**                                         | Microsoft Store                        |
+| ----------------------------------------------------------- | --------------------------------------------------- | -------------------------------------- |
+| Stuck on "Pending" / updates that never finish              | ✅ One install at a time + **Unjam** that clears it | ❌ Can stay stuck, even after restarts |
+| Updates your other programs (Chrome, 7-Zip, Steam, Zoom...) | ✅ Same page, through winget                        | ❌                                     |
+| Tells you when an update wants new permissions              | ✅ Waits for your OK (camera, mic, files...)        | ❌ Installs silently                   |
+| Install an **older version** of an app                      | ✅                                                  | ❌                                     |
+| Hold one app, or skip one bad version                       | ✅ Per app                                          | ❌ All or nothing                      |
+| Pause, resume, reorder downloads, speed limit               | ✅                                                  | ❌                                     |
+| Save an app to a USB stick for an offline PC                | ✅ With everything it needs                         | ❌                                     |
+| Remove preinstalled extras (Candy Crush, Clipchamp...)      | ✅ In one go, with **Put back**                     | One at a time, in Settings             |
+| Updates the shared Windows runtimes apps depend on          | ✅ Shown separately                                 | Hidden                                 |
+| Paid apps and Game Pass                                     | ❌ Needs a licence only the Store can get           | ✅                                     |
+| Free and open source, no account, no tracking               | ✅                                                  | -                                      |
 
-<p align="center"><img src="docs/screenshots/light-home.png" alt="Home" width="860"></p>
-
-- **Browse and install** - the full Store: charts, categories, search with filters, app pages with screenshots and
-  reviews. Free apps, including the "desktop installer" ones (Discord, Zoom, Teams...).
-- **Every update in one place** - Store apps, the Windows runtimes they need, and your other programs (Chrome, 7-Zip,
-  Steam, VLC...) through winget. "Update all" really means all.
-- **It doesn't jam** - one install at a time PC-wide, pause/resume/reorder downloads, and a Health page that spots a
-  stuck installer and unjams it.
-- **Permission warnings** - if an update wants more than the version you have (camera, microphone, your files,
-  full desktop access), it waits for your OK. The Microsoft Store never tells you this.
-- **You stay in control** - hold an app, skip a bad version, install an older version, keep the previous version to
-  roll back, choose which drive apps go on, and move apps between drives.
-- **Offline copies** - save an app and everything it needs to a USB stick and install it on a PC without internet.
-- **Preinstalled extras** - remove Candy Crush, Clipchamp, News and the rest for your account; put them back any time.
-- **Quietly in the background** - optional updates at sign-in and every 6 hours, as you (never as admin), with quiet
-  hours, wait-for-Wi-Fi and wait-for-the-charger options.
-- **Store links open here** (optional) - links to the Microsoft Store, from websites or Windows itself, open in
-  Unjammed.
+## A closer look
 
 <table>
 <tr>
-<td><img src="docs/screenshots/dark-updates.png" alt="Updates: Store apps, Windows runtimes and other programs"></td>
-<td><img src="docs/screenshots/dark-app-9NCBCSZSJRSB.png" alt="An app page"></td>
+<td width="50%"><img src="docs/screenshots/light-updates.png" alt="Updates"><br><b>Every update in one place.</b> Store apps, the Windows runtimes they need, and your other programs - "Update all" really means all.</td>
+<td width="50%"><img src="docs/screenshots/dark-app-9NCBCSZSJRSB.png" alt="App page"><br><b>The whole Store.</b> Charts, categories, search, reviews, screenshots - and a plain list of what each app is allowed to access.</td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/dark-health.png" alt="Health: jam detector, service test, preinstalled extras"></td>
-<td><img src="docs/screenshots/light-settings.png" alt="Settings"></td>
+<td><img src="docs/screenshots/dark-health.png" alt="Health"><br><b>Spots a jam and clears it.</b> Checks the installer every few minutes, can stop the Store fighting it, cleans up leftovers.</td>
+<td><img src="docs/screenshots/light-settings.png" alt="Settings"><br><b>Quietly in the background.</b> Optional updates at sign-in and every 6 hours - as you, never as admin - with quiet hours and wait-for-Wi-Fi/charger.</td>
 </tr>
 </table>
 
+Also: light and dark themes, holds and rollback, choose the drive apps install to (great for big games), Store links
+from websites can open in Storely, export your app list and install it all on a new PC, and a `storely-cli` for
+scripting.
+
 ## Install
 
-1. Download **`Unjammed-Setup-<version>-x64.exe`** from [Releases](https://github.com/Ryuu3rs/unjammed/releases/latest)
-   (or the `-arm64` one for Snapdragon/ARM PCs).
-2. Run it and click through: Next, Next, Install. It goes into Program Files, adds a Start menu entry, and has an
-   uninstaller in Settings > Apps.
+1. **[Download Storely](https://github.com/Ryuu3rs/storely/releases/latest)** - `Storely-Setup-...-x64.exe` for
+   most PCs, `-arm64` for Snapdragon/ARM laptops.
+2. Run it: Next, Next, Install. Storely goes in the Start menu (right-click it to pin it).
 
-**"Windows protected your PC"?** The installer isn't code-signed (that costs hundreds a year), so SmartScreen
-doesn't know it yet. Click **More info > Run anyway**. To check you have the real file, compare its SHA-256
-(`Get-FileHash .\Unjammed-Setup-*.exe`) with the `SHA256SUMS` file on the release page.
+> **"Windows protected your PC"?** Storely is free and its installer isn't code-signed (that costs hundreds a year),
+> so Windows doesn't recognise it yet. Click **More info > Run anyway**. Each release has a signed `SHA256SUMS` file
+> if you'd like to check you have the genuine download.
 
-Already installed? Unjammed tells you when a new version is out and updates itself after checking the download's
-signature. Installing a new version over the top keeps all your settings.
+Storely updates itself: it tells you when there's a new version and checks the download's signature before
+installing it.
 
 ## Is it safe?
 
-- Store packages are only accepted from Microsoft's servers, must match Microsoft's published digest, and must be
-  signed by the Microsoft Store (or Microsoft) for the same publisher as the copy you have. Desktop installers must
-  match the SHA-256 in the Store's own install recipe and be validly signed.
-- The few things that need admin (clearing a jam, cleaning up old app versions, apps that install a Windows service)
-  ask once through the normal Windows prompt, and run code that only admins can change. No scripts are written to
-  disk.
-- Background updates run as you, never as admin.
-- The whole thing is open source. See [SECURITY.md](SECURITY.md) for the details and how to report a problem.
+Yes - and you don't have to take our word for it, the code is all here.
+
+- Store apps only come from Microsoft's own servers, and are checked against Microsoft's fingerprint and signature
+  before they install.
+- Other programs come through winget, Microsoft's own package manager, which checks each installer too.
+- The few things that need admin (like clearing a jam) ask through the normal Windows prompt, and only run code that
+  can't be changed without admin rights. Background updates never run as admin.
+- No account, no ads, no tracking. Your settings stay on your PC.
+
+Details for the curious: [SECURITY.md](SECURITY.md).
 
 ## FAQ
 
-**Does it replace the Microsoft Store?** It does everything most people use the Store for, and the Store can stay
-installed alongside it. Turning off the Store's own automatic updates (Health page) stops the two fighting.
+**Do I have to uninstall the Microsoft Store?** No. They live side by side. Storely can switch off the Store's own
+automatic updates so the two don't trip over each other (Health page).
 
-**Paid apps and games?** Not supported - those need a licence from your Microsoft account, which only the Store can
-get. Free apps (most of the Store) work.
+**Why can't I get paid apps?** Buying and Game Pass need a licence from your Microsoft account, which only the Store
+can get. Free apps - most of the Store - work.
 
-**Is this allowed?** It uses the same public services the Store app does, downloads only Microsoft-signed packages
-from Microsoft, and doesn't get around licensing. It is an unofficial tool, not made or endorsed by Microsoft, and
-Microsoft can change those services at any time (the Health page has a test for exactly that).
+**Is this allowed?** Storely uses the same public services the Store app does, only installs Microsoft-signed
+packages from Microsoft, and doesn't get around any licensing. It's an independent project, not made or endorsed by
+Microsoft, and Microsoft can change those services at any time (Health > Microsoft's services tests them).
 
-**Uninstalling** - Settings > Apps > Unjammed > Uninstall. It asks whether to keep your settings.
+**How do I uninstall it?** Settings > Apps > Storely > Uninstall. It asks whether to keep your settings.
+
+**I used "My Store"** - Storely is its new name. Installing Storely upgrades it and keeps everything.
 
 ## Privacy
 
-No accounts, analytics or telemetry. Everything stays on your PC in `%LOCALAPPDATA%\Unjammed`. Unjammed talks to
-Microsoft's Store and delivery services (sending your region, language, Windows build and the apps it looks up, as
-the Store does), to a desktop app's own download server when you install one, to winget's sources, and to GitHub
-to check for a new Unjammed.
+Nothing is collected. Storely talks to Microsoft's Store and download servers (sending your region, language, Windows
+version and the apps it looks up - just like the Store), to winget's sources, to an app's own download server when
+you install a desktop app, and to GitHub to check for a new Storely. Everything else stays in
+`%LOCALAPPDATA%\Storely` on your PC.
 
-## Command line
+## For developers
 
-`unjammed-cli list | updates | update <app> [--close] | queue | health | selftest | export <file> | import <file>`,
-with `--json` for scripting.
-
-## Building
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Short version: Python 3.12+, Inno Setup 6, `pwsh -File build.ps1`.
-
-## Thanks
-
-Unjammed stands on work others did to understand the Store's services, especially
-[StoreLib](https://github.com/StoreDev/StoreLib), [rg-adguard's Store link generator](https://store.rg-adguard.net/)
-and Microsoft's own [winget](https://github.com/microsoft/winget-cli).
+- Command line: `storely-cli list | updates | update <app> | queue | health | selftest | export | import`, add
+  `--json` for scripting.
+- Building and releasing: [CONTRIBUTING.md](CONTRIBUTING.md) (Python 3.12+, PySide6, Inno Setup).
+- Thanks to [StoreLib](https://github.com/StoreDev/StoreLib), [rg-adguard](https://store.rg-adguard.net/) and
+  [winget](https://github.com/microsoft/winget-cli) - Storely builds on what they figured out.
 
 ---
 
-Unjammed is not affiliated with or endorsed by Microsoft. Microsoft, Windows and Microsoft Store are trademarks of the
-Microsoft group of companies.
+<sub>Storely is an independent project, not affiliated with or endorsed by Microsoft. Microsoft, Windows and
+Microsoft Store are trademarks of the Microsoft group of companies.</sub>
