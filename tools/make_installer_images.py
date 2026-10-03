@@ -15,7 +15,7 @@ def panel(scale: int) -> Image.Image:
     top, bottom = (31, 95, 214), (11, 30, 72)
     for y in range(h):
         t = y / (h - 1)
-        img.paste(tuple(round(a + (b - a) * t) for a, b in zip(top, bottom)), (0, y, w, y + 1))
+        img.paste(tuple(round(a + (b - a) * t) for a, b in zip(top, bottom, strict=True)), (0, y, w, y + 1))
     icon = Image.open(ROOT / "assets" / "icon.png").convert("RGBA").resize((112 * scale, 112 * scale), Image.LANCZOS)
     img.paste(icon, ((w - icon.width) // 2, 56 * scale), icon)
     return img

@@ -58,6 +58,10 @@ KNOWN_ERRORS = {
     "0x80073CF8": "Another install of the same app cancelled this one - try again",
     "0x80073CF9": "Windows' installer refused it",
     "0x80070490": "Windows' package records for this app are damaged - try Repair, or Unjam (deep clean)",
+    "0x80073CFA": "Windows won't remove this app - it's part of Windows or needed by another app",
+    "0x80073D0B": "This app came with Windows and can't be moved to another drive",
+    "0x800703EE": "That drive's app storage is mixed up with another drive's - see Settings > Where apps install",
+    "0x80070005": "Windows said no - that needs admin rights",
 }
 
 
@@ -200,8 +204,12 @@ def package_dependencies(path: Path, arch: str = ARCH) -> list[Dependency]:
             # skip stub packages (AppxMetadata\Stub\...) - placeholders, not the real app
             pkgs = [p for p in bm.iter() if p.tag.endswith("}Package") and p.get("Type", "application") == "application"
                     and "stub" not in (p.get("FileName") or "").replace("\\", "/").lower().split("/")[:-1]]
-            pick = next((p for p in pkgs if (p.get("Architecture") or "").lower() == arch), None) or \
-                next((p for p in pkgs if (p.get("Architecture") or "").lower() == "neutral"), None) or (pkgs[0] if pkgs else None)
+            # explicit "is None" checks: an XML element with no children is falsy, so `or` would skip a real match
+            pick = next((p for p in pkgs if (p.get("Architecture") or "").lower() == arch), None)
+            if pick is None:
+                pick = next((p for p in pkgs if (p.get("Architecture") or "").lower() == "neutral"), None)
+            if pick is None and pkgs:
+                pick = pkgs[0]
             if pick is None:
                 return []
             inner_name = pick.get("FileName").replace("\\", "/")
@@ -214,6 +222,17 @@ def package_dependencies(path: Path, arch: str = ARCH) -> list[Dependency]:
     root = ET.fromstring(manifest)
     return [Dependency(d.get("Name"), vtuple(d.get("MinVersion", "0")), d.get("Publisher", ""))
             for d in root.iter() if d.tag.endswith("}PackageDependency")]
+
+
+def is_framework_package(path: Path) -> bool:
+    """A framework (shared runtime) package rather than an app - those install first."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            root = ET.fromstring(z.read("AppxManifest.xml"))
+    except (OSError, KeyError, zipfile.BadZipFile, ET.ParseError):
+        return False
+    fw = root.find("{*}Properties/{*}Framework")
+    return fw is not None and (fw.text or "").strip().lower() == "true"
 
 
 def dn(s: str) -> dict[str, str]:
@@ -284,10 +303,12 @@ def _run(script: str, timeout: float) -> tuple[bool, str]:
     return False, err[:1500]
 
 
-def install(path: Path, deps: list[Path] | None = None, close_app: bool = False, timeout: float = 900) -> tuple[bool, str]:
+def install(path: Path, deps: list[Path] | None = None, close_app: bool = False, timeout: float = 900,
+            volume_args: str = "") -> tuple[bool, str]:
     dep = f" -DependencyPath {','.join(q(d) for d in deps)}" if deps else ""
     force = " -ForceApplicationShutdown" if close_app else ""
-    return _run(f"$ErrorActionPreference='Stop'; Add-AppxPackage -Path {q(path)}{dep} -ForceUpdateFromAnyVersion{force}", timeout)
+    return _run(f"$ErrorActionPreference='Stop'; Add-AppxPackage -Path {q(path)}{dep} -ForceUpdateFromAnyVersion{force}"
+                f"{volume_args}", timeout)
 
 
 def repair(pkg: Installed, timeout: float = 600) -> tuple[bool, str]:

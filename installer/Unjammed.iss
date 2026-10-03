@@ -96,6 +96,8 @@ Root: HKLM; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueN
 Filename: "{app}\{#AppExe}"; Parameters: "--enable-background"; StatusMsg: "Turning on background updates..."; Tasks: background; Flags: runasoriginaluser runhidden waituntilterminated
 Filename: "ms-settings:defaultapps?registeredAppMachine=Unjammed"; Tasks: storelinks; Flags: shellexec runasoriginaluser nowait
 Filename: "{app}\{#AppExe}"; Description: "Open Unjammed now"; Flags: postinstall nowait skipifsilent runasoriginaluser
+; self-update runs setup silently: reopen the app afterwards
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Unjammed background updates"" /F"; Flags: runhidden; RunOnceId: "RemoveBackgroundTask"

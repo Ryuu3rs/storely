@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
@@ -15,7 +17,7 @@ import sys
 import PySide6
 
 from ..winsys import store_links_ours
-from .. import DATA_DIR, FROZEN, ROOT, __version__, admin, background, cleanup, settings as settings_mod, storequeue, wpm
+from .. import DATA_DIR, FROZEN, ROOT, __version__, admin, background, cleanup, debloat, diag, settings as settings_mod, storequeue, volumes, wpm
 from .. import ui_kit as K
 from ..browse import Card
 from .widgets import AppIcon, Grid, QueueRow, StoreTile, button, clear, fmt_size, label
@@ -76,6 +78,39 @@ class ManagePages:
             lay.addWidget(label(f"Desktop apps from the Store ({len(desk)})", "H2"))
             for d in desk:
                 lay.addWidget(self._desktop_row(d))
+        if self.framework_ups:
+            fh = QHBoxLayout()
+            fh.addWidget(label(f"Windows runtimes ({len(self.framework_ups)})", "H2"))
+            fh.addStretch()
+            lay.addLayout(fh)
+            lay.addWidget(label("Shared parts that Store apps run on (Visual C++ runtime, UI libraries, .NET Native...). "
+                                "Updating them is safe: apps keep working, and Windows tidies up old versions.", "Muted", wrap=True))
+            for have, pkg in self.framework_ups:
+                lay.addWidget(self._simple_row(have.name, f"{have.arch}  ·  Version {have.version}  →  {pkg.version_str}  ·  "
+                                               f"{fmt_size(pkg.size)}", f"{have.name}|{have.arch}",
+                                               lambda h=have, p=pkg: self.queue.add_framework(h, p)))
+        if self.settings.get("winget", True):
+            others = self.winget_ups
+            wh = QHBoxLayout()
+            wh.addWidget(label(f"Other apps ({len(others)})" if others else "Other apps", "H2"))
+            wh.addStretch()
+            if others:
+                wa = button("Update all other apps", icon="download")
+                wa.clicked.connect(lambda: ([self.queue.add_winget(u) for u in others], self.show_page("downloads")))
+                wh.addWidget(wa)
+            lay.addLayout(wh)
+            note = {"missing": "winget (Microsoft's App Installer) isn't on this PC - get 'App Installer' from the Store "
+                               "to update your other programs here too.",
+                    "": "Checking your other programs (Chrome, 7-Zip, Steam...) with winget..."}.get(self.winget_state, "")
+            if self.winget_state.startswith("error"):
+                note = f"winget couldn't check: {self.winget_state[7:]}"
+            if not others and self.winget_state == "ok":
+                note = "Your other programs are up to date."
+            if note:
+                lay.addWidget(label(note, "Muted", wrap=True))
+            for u in others:
+                lay.addWidget(self._simple_row(u.name, f"Version {u.version}  →  {u.available}  ·  {u.id}  ·  winget",
+                                               u.id, lambda u=u: self.queue.add_winget(u)))
         if held:
             lay.addWidget(label(f"Held back ({len(held)})", "H2"))
             self._rows_for(lay, held)
@@ -93,6 +128,25 @@ class ManagePages:
                 rl.addWidget(b)
                 lay.addWidget(row)
         lay.addStretch()
+
+    def _simple_row(self, title: str, sub: str, key: str, add) -> QFrame:
+        row = QFrame()
+        row.setObjectName("Card")
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(14, 10, 14, 10)
+        ic = AppIcon(self, 40)
+        ic.set_app(title)
+        rl.addWidget(ic)
+        mid = QVBoxLayout()
+        mid.addWidget(label(title))
+        mid.addWidget(label(sub, "Muted"))
+        rl.addLayout(mid, 1)
+        qi = self.queue.find(key)
+        b = button(qi.msg[:30] if qi else "Update", accent=not qi)
+        b.clicked.connect(lambda: self.show_page("downloads") if self.queue.find(key) else
+                          (add(), self.refresh_badges(), self.render_updates()))
+        rl.addWidget(b)
+        return row
 
     def _desktop_row(self, d: wpm.DesktopApp) -> QFrame:
         row = QFrame()
@@ -132,7 +186,9 @@ class ManagePages:
         exp.clicked.connect(self.export_apps)
         imp = button("Import list")
         imp.clicked.connect(self.import_apps)
-        for w_ in (flt, sort, exp, imp):
+        off = button("Install from folder", tip="Install an offline copy saved with ⋯ > Save offline copy (no internet needed)")
+        off.clicked.connect(self.install_from_folder)
+        for w_ in (flt, sort, exp, imp, off):
             head.addWidget(w_)
         lay.addLayout(head)
         apps = list(self.engine.apps.values())
@@ -169,6 +225,15 @@ class ManagePages:
             desk_box.addWidget(label("Desktop apps installed from the Store", "H2"))
             for d in self.desktop_apps.values():
                 desk_box.addWidget(self._desktop_row(d))
+
+    def install_from_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Folder with an offline copy (app + frameworks)")
+        if not folder:
+            return
+        self.statusBar().showMessage("Checking signatures and installing...")
+        self.jobs.run(lambda: self.engine.install_folder(Path(folder)), lambda res, e: (
+            QMessageBox.information(self, "Unjammed", "Installed:\n" + "\n".join(res)) if res else
+            QMessageBox.warning(self, "Unjammed", f"Nothing was installed: {e}"), self.rescan()))
 
     def export_apps(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export app list", str(DATA_DIR / "my-apps.json"), "JSON (*.json)")
@@ -359,6 +424,27 @@ class ManagePages:
         row.addWidget(tb)
         lay.addLayout(row)
 
+        lay.addWidget(label("Microsoft's services", "H2"))
+        st = QVBoxLayout()
+        lay.addLayout(st)
+        sr = QHBoxLayout()
+        sr.addWidget(label("Unjammed uses the Store's own (undocumented) services. If something stops working, this "
+                           "shows whether Microsoft changed or blocked one of them.", "Muted", wrap=True), 1)
+        tb2 = button("Test them")
+        sr.addWidget(tb2)
+        st.addLayout(sr)
+        results = QVBoxLayout()
+        st.addLayout(results)
+
+        def tested(res, err):
+            clear(results)
+            for r in res or [{"name": "Test", "ok": False, "ms": 0, "detail": str(err)}]:
+                results.addWidget(label(f"  {'✓' if r['ok'] else '✗'}  {r['name']}  -  "
+                                        f"{'working' if r['ok'] else 'not working: ' + r['detail']} ({r['ms']} ms)", "Muted"))
+        tb2.clicked.connect(lambda: (clear(results), results.addWidget(label("  Testing...", "Muted")),
+                                     self.jobs.run(lambda: diag.selftest(self.engine.catalog.market), tested)))
+
+        self._extras(lay)
         lay.addWidget(label("Clean-up", "H2"))
         cbox = QVBoxLayout()
         lay.addLayout(cbox)
@@ -389,6 +475,115 @@ class ManagePages:
             r.addWidget(b)
             cbox.addLayout(r)
         self.jobs.run(cleanup.caches, got)
+
+    def _extras(self, lay):
+        """Preinstalled apps people usually don't want, removable for you and put back any time."""
+        lay.addWidget(label("Preinstalled extras", "H2"))
+        found = debloat.installed_clutter(self.engine.all_installed)
+        gone = debloat.removed()
+        if not found and not gone:
+            lay.addWidget(label("None of the usual preinstalled extras are on this PC.", "Muted"))
+            return
+        boxes = []
+        if found:
+            hr = QHBoxLayout()
+            hr.addWidget(label(f"{len(found)} apps that came with Windows or were pushed onto it. Removing one only affects "
+                               "your account, and you can put it back here any time. (New accounts still get them, and a "
+                               "big Windows update can bring some back.)", "Muted", wrap=True), 1)
+            show = button("Hide list" if getattr(self, "extras_open", False) else "Choose...")
+            show.clicked.connect(lambda: (setattr(self, "extras_open", not getattr(self, "extras_open", False)),
+                                          self.render_health()))
+            hr.addWidget(show)
+            lay.addLayout(hr)
+            if not getattr(self, "extras_open", False):
+                found = []
+            for g in debloat.GROUPS:
+                mine = [e for e in found if e.group == g]
+                if not mine:
+                    continue
+                lay.addWidget(label(f"  {g}", "Muted"))
+                for e in mine:
+                    cb = QCheckBox(f"{e.title}  -  {e.description}")
+                    boxes.append((cb, e))
+                    lay.addWidget(cb)
+        if boxes:
+            rb = button("Remove selected", icon="delete")
+
+            def remove():
+                pick = [e for cb, e in boxes if cb.isChecked()]
+                if not pick or QMessageBox.question(self, "Unjammed", f"Remove {len(pick)} app(s) for your account?\n\n"
+                                                    + "\n".join(e.title for e in pick)) != QMessageBox.Yes:
+                    return
+                self.statusBar().showMessage(f"Removing {len(pick)} app(s)...")
+                self.jobs.run(lambda: [(e.title, *debloat.remove(e, self.engine.all_installed)) for e in pick],
+                              lambda res, err: (QMessageBox.information(self, "Unjammed", "\n".join(
+                                  f"{t}: {'removed' if ok else msg}" for t, ok, msg in res or []) or str(err)), self.rescan()))
+            rb.clicked.connect(remove)
+            lay.addWidget(rb, 0, Qt.AlignLeft)
+        if gone:
+            lay.addWidget(label("  Removed by Unjammed - put back:", "Muted"))
+            for r in gone:
+                row = QHBoxLayout()
+                row.addWidget(label(f"      {r['title']}", "Muted"), 1)
+                pb = button("Put back")
+                pb.clicked.connect(lambda _, r=r: self.jobs.run(
+                    lambda: self.engine.app_for_product(self.engine.catalog.product(r["product_id"])),
+                    lambda a, e: (self.queue.add_store(a), self.show_page("downloads")) if a else
+                    QMessageBox.warning(self, "Unjammed", f"Couldn't find it in the Store: {e}")))
+                fg = button("Forget", flat=True)
+                fg.clicked.connect(lambda _, f=r["family"]: (debloat.forget(f), self.render_health()))
+                row.addWidget(pb)
+                row.addWidget(fg)
+                lay.addLayout(row)
+
+    def _drives(self, lay):
+        lay.addWidget(label("Where apps install", "H2"))
+        box = QVBoxLayout()
+        lay.addLayout(box)
+        box.addWidget(label("Reading drives...", "Muted"))
+
+        def got(vols, err):
+            clear(box)
+            if err or not vols:
+                box.addWidget(label(f"Couldn't read Windows' app drives: {err}", "Muted"))
+                return
+            pref = volumes.preferred(vols)
+            usable = [v for v in vols if v.usable]
+            for v in vols:
+                state = ("Windows' default" if v.is_default else "") + (" · offline" if v.is_offline else "") + \
+                        (" · stale record (another disk has this drive's ID - fix in Settings > Apps > Advanced app settings)"
+                         if v.wrong_disk else "")
+                free = f"{fmt_size(v.free)} free" if v.free is not None else ""
+                box.addWidget(label(f"  {v.label}  {free}  {state}".rstrip(), "Muted"))
+            row = QHBoxLayout()
+            row.addWidget(label("Unjammed installs new apps to:"))
+            dc = QComboBox()
+            dc.addItems(["Windows' default"] + [f"{v.label} ({fmt_size(v.free)} free)" for v in usable])
+            dc.setCurrentIndex(1 + usable.index(pref) if pref in usable else 0)
+
+            def pick(i):
+                volumes.set_preferred(usable[i - 1].path if i else None)
+                self.engine.install_root = Path(usable[i - 1].path if i else os.environ.get("SystemDrive", "C:") + "\\")
+            dc.currentIndexChanged.connect(pick)
+            row.addWidget(dc)
+            row.addStretch()
+            box.addLayout(row)
+            box.addWidget(label("Updates stay wherever the app already is. Big games are the usual reason to pick another "
+                                "drive. To move an installed app: ⋯ > Move to another drive.", "Muted", wrap=True))
+            others = [v for v in usable if not v.is_default and v.drive]
+            if others:
+                row2 = QHBoxLayout()
+                mk = QComboBox()
+                mk.addItems([v.label for v in others])
+                b = button("Make it Windows' default for every app (admin)")
+                b.clicked.connect(lambda: self.jobs.run(lambda: volumes.add_and_set_default(others[mk.currentIndex()].drive),
+                                                        lambda r, e: (QMessageBox.information(self, "Unjammed", (r or (False, str(e)))[1]
+                                                                      or "Done"), self.render_settings())))
+                row2.addWidget(mk)
+                row2.addWidget(b)
+                row2.addStretch()
+                box.addLayout(row2)
+        self.jobs.run(volumes.volumes, got)
 
     # ------------------------------------------------------------------ settings
     def _set(self, key, value):
@@ -463,8 +658,71 @@ class ManagePages:
                      lambda: setattr(self.engine, "keep_rollback", s["keep_rollback"]))
         self._toggle(lay, "pause_on_metered", "Wait for an unmetered connection",
                      "Downloads pause on metered or capped connections (phone hotspot) and carry on later.")
+        self._toggle(lay, "pause_on_battery", "Wait until the PC is plugged in",
+                     "On a laptop running on battery, downloads and background updates wait for the charger.")
+        self._toggle(lay, "ask_new_permissions", "Ask me before updates that add permissions",
+                     "If a new version wants more access (camera, microphone, your files, full desktop access...), it "
+                     "waits in Downloads for your OK. The Microsoft Store never tells you this.")
+        self._toggle(lay, "winget", "Also update my other programs (winget)",
+                     "Chrome, 7-Zip, Steam, Zoom... through winget, Microsoft's package manager. Installers that need admin "
+                     "ask for it themselves.", lambda: setattr(self, "winget_ups", self.winget_ups if s["winget"] else []))
         self._toggle(lay, "notify", "Notifications", "Tell me when updates finish, fail, or the installer jams.")
         self._toggle(lay, "watchdog", "Watch for installer jams", "Checks every 5 minutes.")
+        qh = QHBoxLayout()
+        qon = QCheckBox("Quiet hours: no background installs or notifications from")
+        hours = [f"{h:02d}:00" for h in range(24)]
+        q = s.get("quiet_hours") or []
+        qon.setChecked(len(q) == 2)
+        qa, qb = QComboBox(), QComboBox()
+        for c, v in ((qa, q[0] if len(q) == 2 else 23), (qb, q[1] if len(q) == 2 else 7)):
+            c.addItems(hours)
+            c.setCurrentIndex(int(v))
+
+        def save_quiet(*_):
+            self._set("quiet_hours", [qa.currentIndex(), qb.currentIndex()] if qon.isChecked() else [])
+        for w_ in (qon, qa, label("to"), qb):
+            qh.addWidget(w_)
+        qh.addStretch()
+        qon.toggled.connect(save_quiet)
+        qa.currentIndexChanged.connect(save_quiet)
+        qb.currentIndexChanged.connect(save_quiet)
+        lay.addLayout(qh)
+
+        self._drives(lay)
+        lay.addWidget(label("Appearance", "H2"))
+        th = QHBoxLayout()
+        theme = QComboBox()
+        theme.addItems(["Same as Windows", "Dark", "Light"])
+        theme.setCurrentIndex({"system": 0, "dark": 1, "light": 2}.get(s.get("theme", "system"), 0))
+        theme.currentIndexChanged.connect(lambda i: self._set("theme", ["system", "dark", "light"][i]))
+        th.addWidget(theme)
+        th.addWidget(label("  takes effect the next time Unjammed opens", "Muted"))
+        th.addStretch()
+        lay.addLayout(th)
+
+        lay.addWidget(label("Unjammed updates", "H2"))
+        ur = QHBoxLayout()
+        rel = getattr(self, "self_update", None)
+        ur.addWidget(label(f"Unjammed {rel.version} is available." if rel else
+                           f"You have Unjammed {__version__}. New versions come from GitHub, checked against Unjammed's "
+                           "own signature before they install.", "Muted", wrap=True), 1)
+        if rel:
+            gi = button("Install now", accent=True)
+            gi.clicked.connect(self.install_self_update)
+            sk = button("Skip this version")
+            sk.clicked.connect(lambda: (self._set("skipped_update", rel.version), setattr(self, "self_update", None),
+                                        self.render_settings()))
+            ur.addWidget(gi)
+            ur.addWidget(sk)
+        else:
+            cn = button("Check now")
+            cn.clicked.connect(lambda: self.check_self_update(manual=True))
+            ur.addWidget(cn)
+        lay.addLayout(ur)
+        upd = QCheckBox("Tell me when there's a new Unjammed")
+        upd.setChecked(s.get("self_update", "notify") != "off")
+        upd.toggled.connect(lambda v: self._set("self_update", "notify" if v else "off"))
+        lay.addWidget(upd)
 
         holds = s.get("holds") or {}
         lay.addWidget(label("Held-back apps", "H2"))
@@ -493,7 +751,7 @@ class ManagePages:
                               + ("Unjammed." if store_links_ours() else "the Microsoft Store. Pick Unjammed for "
                                  "'ms-windows-store' to open them here instead."), "Muted", wrap=True), 1)
             b = button("Choose in Windows Settings...")
-            b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("ms-settings:defaultapps?registeredAppMachine=My%20Store")))
+            b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("ms-settings:defaultapps?registeredAppMachine=Unjammed")))
             r.addWidget(b)
             lay.addLayout(r)
         lay.addWidget(label("Files", "H2"))

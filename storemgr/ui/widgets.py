@@ -135,7 +135,7 @@ class AppIcon(QLabel):
         if path:
             self.setPixmap(K.rounded(QPixmap(path), self.sz, max(6, self.sz // 8), bg))
         elif local and os.path.exists(local):
-            self.setPixmap(K.rounded(QPixmap(local), self.sz, max(6, self.sz // 8), "#3a3a3a"))
+            self.setPixmap(K.rounded(QPixmap(local), self.sz, max(6, self.sz // 8), K.ICON_BG))
         else:
             self.setPixmap(K.letter_tile(title, self.sz))
 
@@ -182,7 +182,7 @@ class StoreTile(Clickable):
         if state == "Update":
             badge.setStyleSheet(f"background:{K.ACCENT};color:black;border-radius:10px;padding:2px 8px")
         elif state == "Installed":
-            badge.setStyleSheet(f"background:#25402a;color:{K.GOOD};border-radius:10px;padding:2px 8px")
+            badge.setStyleSheet(f"background:{K.GOOD_BG};color:{K.GOOD};border-radius:10px;padding:2px 8px")
         bottom.addWidget(badge)
         lay.addLayout(bottom)
         self.clicked.connect(lambda: win.open_product(card.product_id, card))
@@ -388,11 +388,12 @@ class QueueRow(QFrame):
 
     def refresh(self):
         it, q = self.item, self.win.queue
-        kind = "Desktop installer" if it.kind == "desktop" else "Store package"
+        kind = {"desktop": "Desktop installer", "winget": "Other app (winget)", "framework": "Windows runtime"}.get(
+            it.kind, "Store package") + (f"  ·  version {it.version}" if it.kind == "store" and it.version else "")
         state = {"queued": "Queued", "downloading": "Downloading", "paused": "Paused", "waiting": "Waiting for installer",
                  "installing": "Installing", "done": "Done", "failed": "Failed", "cancelled": "Cancelled",
-                 "skipped": "Not out yet"}.get(it.state, it.state)
-        color = {"done": K.GOOD, "failed": K.BAD}.get(it.state, K.TEXT2)
+                 "skipped": "Not out yet", "approve": "Needs your OK"}.get(it.state, it.state)
+        color = {"done": K.GOOD, "failed": K.BAD, "approve": K.WARN}.get(it.state, K.TEXT2)
         self.sub.setText(f"<span style='color:{color}'>{state}</span>  ·  {html.escape(it.msg[:110])}  ·  {kind}")
         self.sub.setToolTip(it.error[:2000] if it.error else "")
         self.bar.setVisible(it.state in ("downloading", "waiting", "installing"))
@@ -402,6 +403,15 @@ class QueueRow(QFrame):
         else:
             self.bar.setRange(0, 0)
         clear(self.btns)
+        if it.state == "approve":
+            ok = button("Allow and install", accent=True)
+            ok.setToolTip("New permissions:\n" + it.error)
+            ok.clicked.connect(lambda: q.approve(it.id))
+            no = button("Don't update")
+            no.clicked.connect(lambda: q.decline(it.id))
+            self.btns.addWidget(ok)
+            self.btns.addWidget(no)
+            return
         if it.state in ("queued", "paused"):
             self._btn("back", "Move up", lambda: q.move(it.id, -1))
             self._btn("download", "Move to top", lambda: q.to_top(it.id))

@@ -24,6 +24,7 @@ from . import MACHINE_DIR, RESULTS_DIR, launcher, secure
 from .winapps import FAMILY_RE, NO_WINDOW, SYSTEM32, ps, q, verify_signature
 
 JOB_RE = re.compile(r"\A[0-9a-f]{32}\Z")
+DRIVE_RE = re.compile(r"\A[A-Z]\Z")
 PKG_EXT = {".appx", ".msix", ".appxbundle", ".msixbundle", ".eappx", ".emsix", ".eappxbundle", ".emsixbundle"}
 STAGING = MACHINE_DIR / "staging"
 BACKUP = MACHINE_DIR / "rslc-backup"
@@ -58,20 +59,22 @@ def _parse(p: argparse.ArgumentParser, argv: list[str]):
 # ----------------------------------------------------------------------------- elevated (admin) side
 
 def elevated_main(argv: list[str]) -> int:
-    p = _parser("--elevated", ["unjam", "install", "cleanup", "store-auto-update"])
+    p = _parser("--elevated", ["unjam", "install", "cleanup", "store-auto-update", "app-volume"])
     p.add_argument("--path", default="")
     p.add_argument("--dep", action="append", default=[])
     p.add_argument("--close", action="store_true")
     p.add_argument("--publisher", default="")
     p.add_argument("--value", choices=["on", "off"], default="off")
+    p.add_argument("--drive", default="")
     a = _parse(p, argv)
-    if a is None:
+    if a is None or (a.drive and not DRIVE_RE.match(a.drive)) or (a.action == "app-volume" and not a.drive):
         return 2
     res = {"ok": True, "steps": [], "errors": []}
     try:
         res["steps"] += secure.ensure_protected_dir(MACHINE_DIR)
         RESULTS_DIR.mkdir(exist_ok=True)
-        {"unjam": _unjam, "install": _install, "cleanup": _cleanup, "store-auto-update": _store_auto}[a.action](a, res)
+        {"unjam": _unjam, "install": _install, "cleanup": _cleanup, "store-auto-update": _store_auto,
+         "app-volume": _app_volume}[a.action](a, res)
     except Exception as e:
         res["errors"].append(f"{type(e).__name__}: {e}")
     res["ok"] = not res["errors"]
@@ -230,6 +233,11 @@ def _store_auto(a, res: dict) -> None:
             except FileNotFoundError:
                 pass
             res["steps"].append("Store automatic updates: Windows default")
+
+
+def _app_volume(a, res: dict) -> None:
+    from .volumes import apply_default
+    res["steps"] += apply_default(a.drive)
 
 
 # ----------------------------------------------------------------------------- SYSTEM side

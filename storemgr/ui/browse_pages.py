@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QMessageBo
 
 from .. import engine as engine_mod
 from .. import ui_kit as K
-from .. import winapps, wpm
+from .. import perms, winapps, wpm
 from ..browse import CATEGORIES, CHARTS, Card
 from .widgets import AppIcon, Grid, Shelf, StoreTile, button, clear, fmt_size, label, stars
 
@@ -58,7 +58,7 @@ class BrowsePages:
         if h and h["stuck"]:
             warn = QFrame()
             warn.setObjectName("Card")
-            warn.setStyleSheet("QFrame#Card{background:#3b2427;border:1px solid #6b3a40}")
+            warn.setStyleSheet(f"QFrame#Card{{background:{K.WARN_CARD_BG};border:1px solid {K.WARN_CARD_BORDER}}}")
             wl = QHBoxLayout(warn)
             wl.addWidget(label(f"⚠  Windows' app installer is jammed - {len(h['stuck'])} job(s) stuck."))
             wl.addStretch()
@@ -163,7 +163,7 @@ class BrowsePages:
                 holder.addWidget(label(f"Couldn't load: {err}", "Muted"))
                 return
             t, cards = res
-            for i, c in enumerate(cards, 1):
+            for c in cards:
                 grid.add(StoreTile(self, c))
         self.jobs.run(lambda: self.browse.chart(key, cat, size=60), done)
 
@@ -401,7 +401,7 @@ class BrowsePages:
             for url in p.screenshots:
                 shot = QLabel()
                 shot.setFixedSize(360, 210)
-                shot.setStyleSheet("background:#1f1f1f;border-radius:8px")
+                shot.setStyleSheet(f"background:{K.SHOT_BG};border-radius:8px")
                 shot.setAlignment(Qt.AlignCenter)
                 path = self.images.get(url)
 
@@ -467,6 +467,11 @@ class BrowsePages:
                 rows.append(("Released", f"{det['released']:%d %b %Y}"))
             rows.append(("Installs as", "Desktop installer (Store recipe, SHA-256 checked)" if det.get("installer") == "WPM"
                          else "Store package (Microsoft signed, hash checked)"))
+            if a and a.installed:
+                ps_ = sorted((perms.describe(c) for c in perms.capabilities_installed(a.installed.location)),
+                             key=lambda p: ({"high": 0, "medium": 1}.get(p.risk, 2), p.label))
+                if ps_:
+                    rows.append(("Permissions", ", ".join(p.short or p.label for p in ps_)))
             for lvl, n, v in det.get("requirements", [])[:8]:
                 rows.append((f"{lvl}: {n}", v))
             if fam:

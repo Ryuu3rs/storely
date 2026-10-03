@@ -7,15 +7,16 @@ import re
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtWidgets import (QApplication, QLineEdit, QMainWindow, QMenu, QMessageBox, QScrollArea, QStackedWidget,
+from PySide6.QtWidgets import (QApplication, QFileDialog, QInputDialog, QLineEdit, QMainWindow, QMenu, QMessageBox, QScrollArea, QStackedWidget,
                                QSystemTrayIcon, QToolButton, QVBoxLayout, QHBoxLayout, QWidget)
 
-from storemgr import APP_ID, APP_NAME, ICON_FILE, __version__, admin, background, health, settings as settings_mod, storequeue, winapps, wpm
+from storemgr import APP_ID, APP_NAME, FROZEN, ICON_FILE, __version__, admin, background, debloat, diag, health, settings as settings_mod, storequeue, updater, volumes, winapps, winsys, wpm
 from storemgr import ui_kit as K
 from storemgr.browse import Browse
 from storemgr.cleanup import app_sizes
@@ -24,7 +25,7 @@ from storemgr.engine import App, Engine
 from storemgr.jobs import Jobs
 from storemgr.ui.browse_pages import BrowsePages
 from storemgr.ui.manage_pages import ManagePages
-from storemgr.ui.widgets import AppRow, label, button
+from storemgr.ui.widgets import AppRow, button, fmt_size, label
 
 PAGES = ("home", "updates", "library", "downloads", "wishlist", "health", "settings", "search", "app", "chart", "category")
 NAV = (("home", "Home", "home"), ("updates", "Updates", "updates"), ("library", "Library", "library"),
@@ -78,8 +79,14 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.watchdog = QTimer(self)
         self.watchdog.timeout.connect(self.check_health)
         self.watchdog.start(5 * 60 * 1000)
+        self.queue.approval.connect(self.on_queue_approval)
+        self.framework_ups = []
+        self.winget_ups = []
+        self.winget_state = ""
+        self.self_update = None
         QTimer.singleShot(50, self.rescan)
         self.jobs.run(background.refresh, lambda msg, e: msg and self.statusBar().showMessage(msg, 8000))
+        QTimer.singleShot(20000, self.check_self_update)
 
     # ------------------------------------------------------------------ layout
     def _build(self):
@@ -173,7 +180,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.tray.show()
 
     def notify(self, title, body, warn=False):
-        if not self.settings.get("notify", True):
+        if not self.settings.get("notify", True) or (winsys.in_quiet_hours(self.settings) and not warn):
             return
         self.tray.showMessage(title, body, QSystemTrayIcon.Warning if warn else QSystemTrayIcon.Information, 6000)
 
@@ -199,7 +206,10 @@ class Main(QMainWindow, BrowsePages, ManagePages):
 
     def do_search(self):
         self.search_query = self.search.text().strip()
-        if self.search_query:
+        kind, value = parse_store_link(self.search_query)    # a pasted Store web link opens that app
+        if kind == "product":
+            self.open_product(value)
+        elif self.search_query:
             self.show_page("search")
 
     # ------------------------------------------------------------------ data
@@ -257,7 +267,10 @@ class Main(QMainWindow, BrowsePages, ManagePages):
     def _checked(self, result, error):
         self.checking = False
         self.last_check = time.time()
-        n = sum(1 for a in self.engine.apps.values() if a.update_available)
+        self.framework_ups = self.engine.framework_updates() if not error else []
+        if self.settings.get("winget", True):
+            self.jobs.run(self._winget_list, self._winget_listed)
+        n = sum(1 for a in self.engine.apps.values() if a.update_available) + len(self.framework_ups)
         self.statusBar().showMessage(f"Checked {datetime.now():%H:%M} - {n} update(s)" if not error else f"Check failed: {error}")
         self.refresh_badges()
         self.render_current()
@@ -267,6 +280,54 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             if a.update_available and a.family in self.settings["auto_update"] and not self.queue.find(a.family):
                 if not (a.installed and winapps.running(a.installed.location)):
                     self.queue.add_store(a)
+
+    @staticmethod
+    def _winget_list():
+        from storemgr import winget
+        return winget.list_upgrades() if winget.available() else None
+
+    def _winget_listed(self, ups, error):
+        self.winget_ups = ups or []
+        self.winget_state = "missing" if ups is None and not error else (f"error: {error}" if error else "ok")
+        self.refresh_badges()
+        if self.current in ("updates", "home"):
+            self.render_current()
+
+    def check_self_update(self, manual=False):
+        """New Unjammed release on GitHub (signed with our own key - see storemgr.updater)."""
+        if not manual and (not FROZEN or self.settings.get("self_update", "notify") == "off"):
+            return
+
+        def done(rel, err):
+            self.self_update = rel if not err else None
+            if manual:
+                QMessageBox.information(self, APP_NAME, f"Couldn't check for a new Unjammed: {err}" if err else
+                                        f"Unjammed {rel.version} is available." if rel else f"You have the newest Unjammed ({__version__}).")
+            if rel and (manual or rel.version != self.settings.get("skipped_update")):
+                if not manual:
+                    self.notify(APP_NAME, f"Unjammed {rel.version} is available - see Settings > Unjammed updates")
+                if self.current in ("home", "settings"):
+                    self.render_current()
+        self.jobs.run(updater.check, done)
+
+    def install_self_update(self):
+        rel = getattr(self, "self_update", None)
+        if not rel:
+            return
+        self.statusBar().showMessage(f"Downloading Unjammed {rel.version}...")
+
+        def done(path, err):
+            if err:
+                QMessageBox.warning(self, APP_NAME, f"The update didn't download: {err}")
+                return
+            try:
+                updater.install(path)
+            except Exception as e:
+                QMessageBox.warning(self, APP_NAME, str(e))
+                return
+            self.queue.save()
+            QApplication.quit()       # setup replaces the files, then starts the new version
+        self.jobs.run(lambda: updater.download(rel), done)
 
     def check_health(self):
         self.jobs.run(health.status, self._health)
@@ -278,7 +339,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.health = h
         if h["stuck"]:
             self.health_chip.setText(f"  ⚠ Installer jammed ({len(h['stuck'])})  ")
-            self.health_chip.setStyleSheet(f"background:#4a2b2e; color:{K.BAD}; border-radius:10px; padding:2px 10px")
+            self.health_chip.setStyleSheet(f"background:{K.BAD_BG}; color:{K.BAD}; border-radius:10px; padding:2px 10px")
             if self.settings.get("auto_unjam") and not getattr(self, "_auto_unjammed", False):
                 self._auto_unjammed = True     # cancel the Store's stuck items once, no prompt, then look again
                 for i in storequeue.items():
@@ -291,7 +352,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         else:
             self._auto_unjammed = False
             self.health_chip.setText("  ✓ Installer healthy  ")
-            self.health_chip.setStyleSheet(f"background:#25402a; color:{K.GOOD}; border-radius:10px; padding:2px 10px")
+            self.health_chip.setStyleSheet(f"background:{K.GOOD_BG}; color:{K.GOOD}; border-radius:10px; padding:2px 10px")
         if self.current in ("health", "home"):
             self.render_current()
 
@@ -332,6 +393,8 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             return
         if ok:
             self.failures.pop(it.key, None)
+            if it.kind == "store":
+                debloat.forget(it.key)        # it was on the "put back" list: it's back
         else:
             self.failures[it.key] = (winapps.explain(msg), msg)
             if not self.isVisible():
@@ -362,7 +425,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
 
     def refresh_badges(self, rows=True):
         n = sum(1 for a in self.engine.apps.values() if a.update_available) + \
-            sum(1 for d in self.desktop_apps.values() if d.update_available)
+            sum(1 for d in self.desktop_apps.values() if d.update_available) + len(self.framework_ups) + len(self.winget_ups)
         live = len(self.queue.pending())
         self.nav["updates"].setText(f"Updates ({n})" if n else "Updates")
         self.nav["downloads"].setText(f"Downloads ({live})" if live else "Downloads")
@@ -411,7 +474,9 @@ class Main(QMainWindow, BrowsePages, ManagePages):
     def update_all(self):
         apps = [a for a in self.engine.apps.values() if a.update_available and not self.queue.find(a.family)]
         desk = [d for d in self.desktop_apps.values() if d.update_available and not self.queue.find(d.product_id)]
-        if not apps and not desk:
+        fws = [(h, p) for h, p in self.framework_ups if not self.queue.find(f"{h.name}|{h.arch}")]
+        others = [u for u in self.winget_ups if not self.queue.find(u.id)]
+        if not apps and not desk and not fws and not others:
             self.statusBar().showMessage("Nothing to update", 5000)
             return
         open_ = [a.title for a in apps if a.installed and winapps.running(a.installed.location)]
@@ -425,8 +490,21 @@ class Main(QMainWindow, BrowsePages, ManagePages):
                 self.queue.add_store(a, close_app=close)
         for d in desk:
             self.queue.add_desktop(d)
+        for h, p in fws:
+            self.queue.add_framework(h, p)
+        for u in others:
+            self.queue.add_winget(u)
         self.refresh_badges()
         self.show_page("downloads")
+
+    def on_queue_approval(self, iid):
+        it = self.queue._get(iid)
+        if it:
+            self.notify(APP_NAME, f"{it.title}'s update wants new permissions ({it.msg.removeprefix('New permissions: ')}). "
+                        "Open Downloads to allow or skip it.", warn=True)
+        self.refresh_badges()
+        if self.current == "downloads":
+            self.render_downloads()
 
     def unjam_and_retry(self, apps):
         def after(result, error):
@@ -479,6 +557,11 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             hold.addAction(("✓ " if cur == v else "") + f"Skip version {v}", lambda: self.set_hold(app.family, v))
         if cur:
             hold.addAction("Release hold", lambda: self.set_hold(app.family, None))
+        if app.product and app.product.wu_category:
+            m.addAction(K.glyph_icon("history"), "Install an older version...", lambda: self.pick_version(app))
+            m.addAction(K.glyph_icon("download"), "Save offline copy...", lambda: self.save_offline(app))
+        if app.installed:
+            m.addAction("Move to another drive...", lambda: self.move_app(app))
         if app.installed:
             m.addSeparator()
             m.addAction(K.glyph_icon("repair"), "Repair (keeps your data)",
@@ -499,6 +582,59 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             m.addAction("Copy Store ID", lambda: QApplication.clipboard().setText(app.product.product_id))
         m.addAction("Details", lambda: self.open_app(app))
         m.exec(pos)
+
+    def pick_version(self, app: App):
+        self.statusBar().showMessage(f"Asking Microsoft which versions of {app.title} it still has...")
+
+        def got(vers, err):
+            self.statusBar().clearMessage()
+            if err or not vers:
+                QMessageBox.information(self, APP_NAME, f"Microsoft only offers the current version of {app.title}."
+                                        if not err else f"Couldn't list versions: {err}")
+                return
+            cur = app.current_str
+            names = [f"{f.version_str}" + ("   (installed)" if f.version_str == cur else "") + f"   {fmt_size(f.size)}"
+                     for f in vers]
+            choice, ok = QInputDialog.getItem(self, APP_NAME, f"Install which version of {app.title}?\n"
+                                              "Microsoft keeps only some older builds.", names, 0, False)
+            if not ok:
+                return
+            pick = vers[names.index(choice)]
+            if pick.version_str == cur:
+                return
+            if pick.version < app.current and QMessageBox.question(
+                    self, APP_NAME, f"Hold {app.title} at {pick.version_str} so it isn't updated straight back?") == QMessageBox.Yes:
+                self.set_hold(app.family, "all")
+            self.queue.add_store(app, close_app=True, version=pick.version_str)
+            self.show_page("downloads")
+        self.jobs.run(lambda: self.engine.versions(app), got)
+
+    def move_app(self, app: App):
+        def got(vols, err):
+            here = (app.installed.location[:1] or "").upper()
+            opts = [v for v in vols or [] if v.usable and v.drive and v.drive.upper() != here]
+            if not opts:
+                QMessageBox.information(self, APP_NAME, "There's no other drive set up for apps. Pick one in "
+                                        "Settings > Where apps install first." if not err else f"Couldn't read drives: {err}")
+                return
+            names = [f"{v.label}  ({fmt_size(v.free)} free)" for v in opts]
+            choice, ok = QInputDialog.getItem(self, APP_NAME, f"Move {app.title} (now on {here}:) to:", names, 0, False)
+            if ok:
+                v = opts[names.index(choice)]
+                self.jobs.simple(app, "Move", lambda a: self.engine.exclusive(volumes.move, a.installed.full_name, v.path))
+        self.jobs.run(volumes.volumes, got)
+
+    def save_offline(self, app: App):
+        folder = QFileDialog.getExistingDirectory(self, f"Where should the offline copy of {app.title} go? (a USB stick works)")
+        if not folder:
+            return
+        dest = Path(folder) / re.sub(r'[<>:"/\\|?*]', "_", app.title)
+        self.statusBar().showMessage(f"Saving {app.title} and its frameworks to {dest}...")
+        self.jobs.run(lambda: self.engine.export_offline(app, dest), lambda files, e: (
+            self.statusBar().clearMessage(),
+            QMessageBox.information(self, APP_NAME, f"Saved to {dest}:\n" + "\n".join(p.name for p in files) +
+                                    "\n\nOn the other PC: Unjammed > Library > Install from folder.") if files else
+            QMessageBox.warning(self, APP_NAME, f"Couldn't save it: {e}")))
 
     def _confirm(self, text, fn):
         if QMessageBox.question(self, APP_NAME, text) == QMessageBox.Yes:
@@ -546,16 +682,38 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             self.do_search()
         elif kind in ("updates", "library", "home"):
             self.show_page(kind)
+        elif kind == "update-all":     # from our own notification: only with its one-time token
+            if winsys.take_action_token("update-all", value):
+                self.show_page("updates")
+                QTimer.singleShot(1500, self.update_all)
+            else:
+                self.show_page("updates")
+
+
+PRODUCT_ID = re.compile(r"[A-Za-z0-9]{12}")
 
 
 def parse_store_link(text: str) -> tuple[str, str]:
     """ms-windows-store://pdp/?ProductId=9WZDNCRFJBMP -> ("product", "9WZDNCRFJBMP"); also PFN=, search, updates,
-    library. ("", "") = not a Store link (just bring the window forward)."""
-    u = urlsplit(text or "")
-    if u.scheme.lower() != "ms-windows-store":
+    library; Store web pages (apps.microsoft.com/detail/<id>, microsoft.com/store/productId/<id>); and our own
+    unjammed://updates, unjammed://update-all?token=.... ("", "") = not a link we know (just show the window)."""
+    u = urlsplit((text or "").strip())
+    scheme, host = u.scheme.lower(), (u.hostname or "").lower()
+    if scheme in ("http", "https"):
+        if host in ("apps.microsoft.com", "www.microsoft.com", "microsoft.com"):
+            last = [p for p in u.path.split("/") if p]
+            pid = next((p for p in reversed(last) if PRODUCT_ID.fullmatch(p)), "")
+            if pid:
+                return "product", pid.upper()
         return "", ""
-    where = (u.netloc or u.path.strip("/")).lower()
     qs = {k.lower(): v for k, v in parse_qsl(u.query)}
+    where = (u.netloc or u.path.strip("/")).lower()
+    if scheme == "unjammed":
+        if where == "update-all":
+            return "update-all", qs.get("token", "")
+        return (where, "") if where in ("updates", "library", "home") else ("home", "")
+    if scheme != "ms-windows-store":
+        return "", ""
     pid, pfn = qs.get("productid", ""), qs.get("pfn", "")
     if re.fullmatch(r"[A-Za-z0-9]{8,20}", pid):
         return "product", pid.upper()
@@ -588,7 +746,8 @@ def _hand_over(msg: str) -> bool:
 
 def main(args: list[str] | None = None):
     args = sys.argv[1:] if args is None else args
-    link = next((a for a in args if a.lower().startswith("ms-windows-store:")), "")
+    link = next((a for a in args if a.lower().startswith(("ms-windows-store:", "unjammed:"))), "")
+    diag.install_crash_handlers(gui=True)
     try:   # own taskbar identity, so Windows shows our icon instead of Python's
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
@@ -605,6 +764,7 @@ def main(args: list[str] | None = None):
     server.setSocketOptions(QLocalServer.UserAccessOption)   # only this Windows account can talk to it
     QLocalServer.removeServer(_instance_name())
     server.listen(_instance_name())
+    K.apply_theme(settings_mod.load().get("theme", "system"))
     app.setStyleSheet(K.STYLE)
     w = Main()
 

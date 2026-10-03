@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, field
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from . import DATA_DIR, winsys, wpm
+from . import DATA_DIR, perms, winsys, wpm
 from .download import LIMIT, Cancelled
 from .engine import Engine, NotYetOut, log
 
@@ -25,12 +25,14 @@ FINAL = ("done", "failed", "cancelled", "skipped")
 @dataclass
 class Item:
     kind: str                    # "store" (MSIX via Microsoft's delivery service) | "desktop" (Store desktop installer)
-    key: str                     # package family (store) or product id (desktop)
+                                 # | "winget" (other apps, through winget) | "framework" (shared runtime)
+    key: str                     # package family (store, framework: name|arch) / product id (desktop) / winget id
     title: str
     product_id: str = ""
     icon_url: str | None = None
     close_app: bool = False
-    state: str = "queued"        # queued downloading paused waiting installing done failed cancelled skipped
+    version: str = ""             # store: install this exact (e.g. older) version instead of the newest
+    state: str = "queued"        # queued downloading paused waiting approve installing done failed cancelled skipped
     done: float = 0
     total: float = 0
     speed: float = 0
@@ -45,6 +47,7 @@ class Item:
 class Queue(QObject):
     changed = Signal(str)             # item id ("" = order/structure)
     finished = Signal(str, bool, str)  # item id, ok, message
+    approval = Signal(str)             # item id: downloaded, but adds permissions the user should OK
 
     def __init__(self, engine: Engine, browse, settings: dict):
         super().__init__()
@@ -52,6 +55,7 @@ class Queue(QObject):
         self.items: list[Item] = []
         self._ctl: dict[str, threading.Event] = {}
         self._why: dict[str, str] = {}
+        self._approval: dict[str, tuple] = {}     # item id -> (app, prepared download) waiting for the user's OK
         self.paused_all = False
         self._load()
         self.timer = QTimer(self)
@@ -66,7 +70,7 @@ class Queue(QObject):
             raw = []
         for d in raw:
             it = Item(**{k: v for k, v in d.items() if k in Item.__dataclass_fields__})
-            if it.state in ACTIVE:
+            if it.state in ACTIVE or it.state == "approve":
                 it.state, it.msg = "queued", "Queued (resumed after restart)"
             self.items.append(it)
 
@@ -79,15 +83,54 @@ class Queue(QObject):
     def find(self, key: str) -> Item | None:
         return next((i for i in self.items if i.key == key and i.state not in FINAL), None)
 
-    def add_store(self, app, close_app=False) -> Item:
+    def add_store(self, app, close_app=False, version: str = "") -> Item:
         cur = self.find(app.family)
         if cur:
             return cur
         p = app.product
-        it = Item("store", app.family, app.title, p.product_id if p else "", p.icon_url if p else None, close_app)
+        it = Item("store", app.family, app.title, p.product_id if p else "", p.icon_url if p else None, close_app, version)
         self.items.append(it)
         self._touch(it)
         return it
+
+    def add_winget(self, up) -> Item:
+        cur = self.find(up.id)
+        if cur:
+            return cur
+        it = Item("winget", up.id, up.name, msg=f"Queued ({up.version} -> {up.available})")
+        self.items.append(it)
+        self._touch(it)
+        return it
+
+    def add_framework(self, have, pkg) -> Item:
+        key = f"{have.name}|{have.arch}"
+        cur = self.find(key)
+        if cur:
+            return cur
+        it = Item("framework", key, f"{have.name} ({have.arch})", version=pkg.version_str)
+        self.items.append(it)
+        self._touch(it)
+        return it
+
+    # ------------------------------------------------------------------ permission approvals
+    def approve(self, iid):
+        """The user OK'd the new permissions: install what's already downloaded and checked."""
+        it = self._get(iid)
+        prep = self._approval.pop(iid, None)
+        if not it or it.state != "approve" or prep is None:
+            return
+        app, prep = prep
+        ev = threading.Event()
+        self._ctl[it.id] = ev
+        it.state, it.msg = "waiting", "Approved - waiting for Windows' installer"
+        self._touch(it)
+        threading.Thread(target=self._finish_store, args=(it, ev, app, prep), daemon=True).start()
+
+    def decline(self, iid):
+        it = self._get(iid)
+        if it and self._approval.pop(iid, None) is not None:
+            it.state, it.msg, it.finished = "cancelled", "Declined - not installed", time.time()
+            self._touch(it)
 
     def add_desktop(self, desk: wpm.DesktopApp, icon_url=None) -> Item:
         cur = self.find(desk.product_id)
@@ -179,12 +222,16 @@ class Queue(QObject):
             return
         running_dl = sum(1 for i in self.items if i.state == "downloading")
         limit = int(self.settings.get("parallel_downloads", 2))
-        if self.settings.get("pause_on_metered", True) and any(i.state == "queued" for i in self.items) and winsys.metered():
-            for i in self.items:
-                if i.state == "queued" and i.msg != "Waiting - metered connection":
-                    i.msg = "Waiting - metered connection"
-                    self.changed.emit(i.id)
+        if not any(i.state == "queued" for i in self.items):
             return
+        for on, why in ((self.settings.get("pause_on_metered", True) and winsys.metered(), "Waiting - metered connection"),
+                        (self.settings.get("pause_on_battery") and winsys.on_battery(), "Waiting - on battery")):
+            if on:
+                for i in self.items:
+                    if i.state == "queued" and i.msg != why:
+                        i.msg = why
+                        self.changed.emit(i.id)
+                return
         for it in self.items:
             if running_dl >= limit:
                 break
@@ -226,7 +273,21 @@ class Queue(QObject):
                 if app is None:
                     raise RuntimeError("app not found")
                 try:
-                    prep = self.engine.prepare(app, report, ev)
+                    pick = None
+                    if it.version:
+                        pick = next((f for f in self.engine.versions(app) if f.version_str == it.version), None)
+                        if pick is None:
+                            raise RuntimeError(f"Microsoft no longer serves version {it.version}")
+                    prep = self.engine.prepare(app, report, ev, pick=pick)
+                    if (self.settings.get("ask_new_permissions", True) and app.installed and prep.perms
+                            and perms.has_risky(prep.perms)):
+                        self._approval[it.id] = (app, prep)       # downloaded and verified; the user decides
+                        it.state, it.msg = "approve", "New permissions: " + perms.summary(prep.perms).removeprefix("Adds: ")
+                        it.error = "\n".join(f"{p.label} ({p.risk})" for p in prep.perms.added)
+                        self._ctl.pop(it.id, None)
+                        self._touch(it)
+                        self.approval.emit(it.id)
+                        return
                     it.state, it.msg = "waiting", "Downloaded - waiting for Windows' installer"
                     self.changed.emit(it.id)
                     v = self.engine.install(app, prep, report, ev, close_app=it.close_app)
@@ -234,6 +295,18 @@ class Queue(QObject):
                 except NotYetOut as e:
                     it.state, it.result, it.msg = "skipped", str(e), "Not out yet"
                     ok, msg = True, f"nothing to install yet - {e}"
+            elif it.kind == "winget":
+                from . import winget
+                v = winget.upgrade(it.key, report, ev)
+                ok, msg = True, f"Updated to {v}" if v else "Updated"
+            elif it.kind == "framework":
+                name, arch = it.key.split("|", 1)
+                have, pkg = next(((h, p) for h, p in self.engine.framework_updates()
+                                  if h.name == name and h.arch == arch), (None, None))
+                if have is None:
+                    ok, msg = True, "already up to date"
+                else:
+                    ok, msg = True, f"Installed {self.engine.update_framework(have, pkg, report, ev)}"
             else:
                 desk = wpm.resolve(self.browse, it.product_id, self.engine.catalog.market)
                 v = wpm.install(desk, report, ev)
@@ -257,6 +330,25 @@ class Queue(QObject):
         it.error = "" if ok else msg
         it.result = msg
         it.finished = time.time()
+        self._touch(it)
+        self.finished.emit(it.id, ok, msg)
+
+    def _finish_store(self, it: Item, ev: threading.Event, app, prep):
+        report = self._report(it)
+        try:
+            v = self.engine.install(app, prep, report, ev, close_app=it.close_app)
+            ok, msg = True, f"Installed {v}"
+        except Cancelled:
+            it.state, it.msg, it.finished = "cancelled", "Cancelled", time.time()
+            self._ctl.pop(it.id, None)
+            self._touch(it)
+            return
+        except Exception as e:
+            ok, msg = False, str(e)
+            log.error("queue store %s failed: %s", it.title, e)
+        self._ctl.pop(it.id, None)
+        it.state = "done" if ok else "failed"
+        it.msg, it.error, it.result, it.finished = msg.splitlines()[0][:200], "" if ok else msg, msg, time.time()
         self._touch(it)
         self.finished.emit(it.id, ok, msg)
 

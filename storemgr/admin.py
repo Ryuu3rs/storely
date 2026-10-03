@@ -121,6 +121,13 @@ def store_auto_updates(enabled: bool) -> dict:
     return _elevated("store-auto-update", "--value", "on" if enabled else "off", timeout=120)
 
 
+def app_volume(drive: str) -> dict:
+    """Add a drive for Store apps (if needed) and make it Windows' default install drive."""
+    if not isinstance(drive, str) or len(drive) != 1 or not ("A" <= drive <= "Z"):
+        return _fail(f"not a drive letter: {drive!r}")
+    return _elevated("app-volume", "--drive", drive, timeout=600)
+
+
 def store_auto_updates_off() -> bool:
     try:
         import winreg

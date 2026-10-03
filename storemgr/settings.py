@@ -19,6 +19,13 @@ DEFAULTS = {
     "speed_limit_mbps": 0,
     "holds": {},                    # family -> "all" | version to skip
     "wishlist": [],                 # [{product_id, title, icon_url, tile_color}]
+    "theme": "system",              # "system" | "dark" | "light"
+    "pause_on_battery": False,
+    "quiet_hours": [],              # [start_hour, end_hour]: no background installs or notifications
+    "winget": True,                 # also show/update other apps through winget
+    "ask_new_permissions": True,    # hold updates that add risky permissions until you approve
+    "self_update": "notify",        # "notify" | "off"
+    "skipped_update": "",
 }
 
 

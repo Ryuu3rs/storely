@@ -76,6 +76,9 @@ def fetch(url: str, dest: Path, size: int, digest: str, progress=None, cancel: t
     size = size or _size_of(url)
     if not size:
         raise RuntimeError("the server didn't say how big the file is")
+    if not part.exists():
+        from .winsys import need_space
+        need_space(dest.parent, size + 50 * 2**20, "the download")
 
     n = SEGMENTS if size >= MIN_SEGMENTED else 1
     bounds = [(i * size // n, (i + 1) * size // n - 1) for i in range(n)]

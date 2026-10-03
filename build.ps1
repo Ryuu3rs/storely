@@ -5,7 +5,7 @@ Inno Setup installer (dist\Unjammed-Setup-<version>-<arch>.exe).
   pwsh -File build.ps1            full build
   pwsh -File build.ps1 -NoTests   skip pytest
 #>
-param([switch]$NoTests)
+param([switch]$NoTests, [string]$Python = '')
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
@@ -14,7 +14,7 @@ $lock = if ($arch -eq 'arm64') { 'requirements-arm64.lock' } else { 'requirement
 $venv = Join-Path $PSScriptRoot "build\venv-$arch"
 $py = Join-Path $venv 'Scripts\python.exe'
 if (-not (Test-Path $py)) {
-    $base = if (Get-Command py -ErrorAction SilentlyContinue) { 'py' } else { 'python' }
+    $base = if ($Python) { $Python } elseif (Get-Command py -ErrorAction SilentlyContinue) { 'py' } else { 'python' }
     & $base -m venv $venv
     if ($LASTEXITCODE) { throw 'could not create the build venv' }
 }

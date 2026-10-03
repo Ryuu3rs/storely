@@ -41,7 +41,7 @@ def _os_version() -> str:
 
 
 _OSV = _os_version()
-OS_ULONG = sum(int(x) << s for x, s in zip(_OSV.split("."), (48, 32, 16, 0)))
+OS_ULONG = sum(int(x) << s for x, s in zip(_OSV.split("."), (48, 32, 16, 0), strict=True))
 PC_PLATFORMS = {"windows.desktop", "windows.universal"}
 
 

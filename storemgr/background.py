@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import DATA_DIR, FROZEN, ROOT, health, launcher, storequeue, winapps, winsys, wpm
+from . import DATA_DIR, FROZEN, ROOT, health, launcher, perms, storequeue, winapps, winsys, wpm
 from .winapps import ps, q
 
 TASK = "Unjammed background updates"
@@ -85,11 +85,15 @@ def run(settings: dict) -> dict:
     from .engine import Engine, NotYetOut
     from .browse import Browse
     t0 = time.time()
-    out = {"started": t0, "updated": [], "failed": [], "skipped_open": [], "needs_admin": [], "jam": "", "desktop": []}
-    if settings.get("pause_on_metered", True) and winsys.metered():
-        out["note"] = "metered connection - skipped"
-        _save(out)
-        return out
+    out = {"started": t0, "updated": [], "failed": [], "skipped_open": [], "needs_admin": [], "needs_ok": [],
+           "waiting": [], "jam": "", "desktop": [], "others": 0}
+    for skip, why in ((settings.get("pause_on_metered", True) and winsys.metered(), "metered connection"),
+                      (settings.get("pause_on_battery") and winsys.on_battery(), "on battery"),
+                      (winsys.in_quiet_hours(settings), "quiet hours")):
+        if skip:
+            out["note"] = f"{why} - skipped"
+            _save(out)
+            return out
     e = Engine(settings.get("market", "GB"), settings.get("keep_rollback", False), settings.get("holds", {}))
     e.allow_admin = False
     e.scan()
@@ -97,13 +101,19 @@ def run(settings: dict) -> dict:
     mode = settings.get("background_mode", "ticked")
     ticked = set(settings.get("auto_update", []))
     for a in e.apps.values():
-        if not a.update_available or (mode == "ticked" and a.family not in ticked):
+        if not a.update_available:
+            continue
+        if mode == "ticked" and a.family not in ticked:
+            out["waiting"].append(a.title)
             continue
         if a.installed and winapps.running(a.installed.location):
             out["skipped_open"].append(a.title)
             continue
         try:
             prep = e.prepare(a)
+            if settings.get("ask_new_permissions", True) and prep.perms and perms.has_risky(prep.perms):
+                out["needs_ok"].append(f"{a.title}: {perms.summary(prep.perms)}")    # the user decides, in the app
+                continue
             v = e.install(a, prep, close_app=False)
             out["updated"].append(f"{a.title} {v}")
         except NotYetOut:
@@ -117,11 +127,22 @@ def run(settings: dict) -> dict:
         for pid in wpm.tracked():
             try:
                 d = wpm.resolve(b, pid, settings.get("market", "GB"))
-                if d.update_available:
-                    wpm.install(d)
-                    out["desktop"].append(f"{d.title} {d.version}")
+                if not d.update_available:
+                    continue
+                if d.installer and (d.installer.scope or "").lower() != "user":
+                    out["needs_admin"].append(f"{d.title}: installs for every user, which needs admin")   # no surprise UAC
+                    continue
+                wpm.install(d)
+                out["desktop"].append(f"{d.title} {d.version}")
             except Exception as ex:
                 out["failed"].append(f"{pid}: {ex}")
+    if settings.get("winget", True):
+        try:
+            from . import winget
+            if winget.available():
+                out["others"] = len(winget.list_upgrades())
+        except Exception as ex:
+            out["failed"].append(f"winget: {ex}")
     if settings.get("watchdog", True):
         stuck = health.installer_jobs()
         if stuck:
@@ -136,6 +157,9 @@ def run(settings: dict) -> dict:
     lines = []
     if out["updated"] or out["desktop"]:
         lines.append(f"Updated {len(out['updated']) + len(out['desktop'])}: " + ", ".join((out["updated"] + out["desktop"])[:4]))
+    waiting = len(out["waiting"]) + len(out["needs_ok"]) + out["others"]
+    if waiting:
+        lines.append(f"{waiting} update(s) waiting" + (f", {len(out['needs_ok'])} want new permissions" if out["needs_ok"] else ""))
     if out["needs_admin"]:
         lines.append(f"{len(out['needs_admin'])} need admin - open Unjammed")
     if out["failed"]:
@@ -143,7 +167,8 @@ def run(settings: dict) -> dict:
     if out["jam"] and "stuck" in out["jam"]:
         lines.append(f"Windows' installer jammed ({out['jam']}) - open Unjammed > Health")
     if lines and settings.get("notify", True):
-        winsys.toast("Unjammed", "\n".join(lines))
+        actions = [("Update all", winsys.action_link("update-all"))] if out["waiting"] or out["others"] else []
+        winsys.toast("Unjammed", "\n".join(lines), actions + [("Open", "unjammed://updates")], launch="unjammed://updates")
     return out
 
 
