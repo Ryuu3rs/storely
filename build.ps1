@@ -1,6 +1,7 @@
 <#
-Builds My Store: clean venv from the hash-pinned lock -> tests -> PyInstaller (dist\MyStore) -> smoke test ->
-Inno Setup installer (dist\MyStore-Setup-<version>.exe).
+Builds Unjammed for this PC's processor (x64 or ARM64 - PyInstaller can't cross-build; CI builds both):
+clean venv from the hash-pinned lock -> tests -> PyInstaller (dist\Unjammed) -> smoke test ->
+Inno Setup installer (dist\Unjammed-Setup-<version>-<arch>.exe).
   pwsh -File build.ps1            full build
   pwsh -File build.ps1 -NoTests   skip pytest
 #>
@@ -8,14 +9,16 @@ param([switch]$NoTests)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-$venv = Join-Path $PSScriptRoot 'build\venv'
+$arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
+$lock = if ($arch -eq 'arm64') { 'requirements-arm64.lock' } else { 'requirements.lock' }
+$venv = Join-Path $PSScriptRoot "build\venv-$arch"
 $py = Join-Path $venv 'Scripts\python.exe'
 if (-not (Test-Path $py)) {
     $base = if (Get-Command py -ErrorAction SilentlyContinue) { 'py' } else { 'python' }
     & $base -m venv $venv
     if ($LASTEXITCODE) { throw 'could not create the build venv' }
 }
-& $py -m pip install --disable-pip-version-check -q --require-hashes -r requirements.lock
+& $py -m pip install --disable-pip-version-check -q --require-hashes -r $lock
 if ($LASTEXITCODE) { throw 'dependency install failed (hash mismatch or network)' }
 
 if (-not $NoTests) {
@@ -24,19 +27,19 @@ if (-not $NoTests) {
 }
 
 & $py tools\make_installer_images.py
-& $py -m PyInstaller --noconfirm --clean --log-level WARN --distpath dist --workpath build\pyinstaller MyStore.spec
+& $py -m PyInstaller --noconfirm --clean --log-level WARN --distpath dist --workpath "build\pyinstaller-$arch" Unjammed.spec
 if ($LASTEXITCODE) { throw 'PyInstaller failed' }
 
-$cli = 'dist\MyStore\mystore-cli.exe'
+$cli = 'dist\Unjammed\unjammed-cli.exe'
 $v = & $cli --version
 if ($LASTEXITCODE -or -not $v) { throw "smoke test failed: $cli --version" }
-Write-Host "built $v"
-if (Get-ChildItem dist\MyStore -Recurse -Include *.ps1, *.py | Select-Object -First 1) { throw 'loose scripts in the build' }
+Write-Host "built $v ($arch)"
+if (Get-ChildItem dist\Unjammed -Recurse -Include *.ps1, *.py | Select-Object -First 1) { throw 'loose scripts in the build' }
 
 $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
 if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
 if (-not (Test-Path $iscc)) { throw 'Inno Setup 6 not found (winget install JRSoftware.InnoSetup)' }
-& $iscc /Q installer\MyStore.iss
+& $iscc /Q "/DArch=$arch" installer\Unjammed.iss
 if ($LASTEXITCODE) { throw 'Inno Setup failed' }
-Get-ChildItem dist\MyStore-Setup-*.exe | Sort-Object LastWriteTime | Select-Object -Last 1 |
+Get-ChildItem "dist\Unjammed-Setup-*-$arch.exe" | Sort-Object LastWriteTime | Select-Object -Last 1 |
     ForEach-Object { Write-Host "installer: $($_.FullName) ($([math]::Round($_.Length / 1MB, 1)) MB)" }

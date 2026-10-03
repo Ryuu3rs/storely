@@ -1,4 +1,4 @@
-"""My Store - a Microsoft Store replacement that doesn't jam."""
+"""Unjammed - a Microsoft Store replacement that doesn't jam."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (QApplication, QLineEdit, QMainWindow, QMenu, QMessageBox, QScrollArea, QStackedWidget,
                                QSystemTrayIcon, QToolButton, QVBoxLayout, QHBoxLayout, QWidget)
 
-from storemgr import APP_ID, APP_NAME, ICON_FILE, __version__, admin, health, settings as settings_mod, storequeue, winapps, wpm
+from storemgr import APP_ID, APP_NAME, ICON_FILE, __version__, admin, background, health, settings as settings_mod, storequeue, winapps, wpm
 from storemgr import ui_kit as K
 from storemgr.browse import Browse
 from storemgr.cleanup import app_sizes
@@ -79,6 +79,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.watchdog.timeout.connect(self.check_health)
         self.watchdog.start(5 * 60 * 1000)
         QTimer.singleShot(50, self.rescan)
+        self.jobs.run(background.refresh, lambda msg, e: msg and self.statusBar().showMessage(msg, 8000))
 
     # ------------------------------------------------------------------ layout
     def _build(self):
@@ -160,7 +161,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
     def _tray(self):
         self.tray = QSystemTrayIcon(QIcon(str(ICON_FILE)), self)
         m = QMenu()
-        m.addAction("Open My Store", self.showNormal)
+        m.addAction("Open Unjammed", self.showNormal)
         m.addAction("Check for updates", self.check_updates)
         m.addAction("Update all", self.update_all)
         m.addAction("Downloads", lambda: (self.showNormal(), self.show_page("downloads")))
@@ -286,7 +287,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
                 QTimer.singleShot(20000, self.check_health)
             elif self.settings["watchdog"] and (not prev or not prev["stuck"]):
                 self.notify(APP_NAME, f"Windows' app installer is jammed ({len(h['stuck'])} stuck job(s)). "
-                            "Open My Store > Health and press Unjam.", warn=True)
+                            "Open Unjammed > Health and press Unjam.", warn=True)
         else:
             self._auto_unjammed = False
             self.health_chip.setText("  ✓ Installer healthy  ")
@@ -570,7 +571,7 @@ def parse_store_link(text: str) -> tuple[str, str]:
 
 
 def _instance_name() -> str:
-    return f"MyStore-{getpass.getuser()}"
+    return f"Unjammed-{getpass.getuser()}"
 
 
 def _hand_over(msg: str) -> bool:

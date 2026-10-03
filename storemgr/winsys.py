@@ -21,7 +21,7 @@ class InstallLock:
     """One install at a time across the app, the background updater and the CLI (Windows' installer jams when
     jobs overlap). A named mutex, so it also covers other processes; re-entrant within a thread."""
 
-    def __init__(self, name: str = "Local\\MyStore-Install", max_wait: float = 2 * 3600):
+    def __init__(self, name: str = "Local\\Unjammed-Install", max_wait: float = 2 * 3600):
         self._h = _k32.CreateMutexW(None, False, name)
         self._local = threading.RLock()
         self._depth = threading.local()
@@ -54,11 +54,11 @@ class InstallLock:
         self._local.release()
 
 
-STORE_LINK_PROGID = "MyStore.StoreLink"   # registered by the installer
+STORE_LINK_PROGID = "Unjammed.StoreLink"   # registered by the installer
 
 
 def store_links_ours() -> bool:
-    """Has the user picked My Store for ms-windows-store:// links (Settings > Default apps)?"""
+    """Has the user picked Unjammed for ms-windows-store:// links (Settings > Default apps)?"""
     try:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations"
@@ -81,7 +81,7 @@ def metered() -> bool:
         return False
 
 
-# installed: our own identity (the Start menu shortcut carries it), so toasts say "My Store" with our icon;
+# installed: our own identity (the Start menu shortcut carries it), so toasts say "Unjammed" with our icon;
 # from source there's no shortcut, so borrow PowerShell's
 AUMID = APP_ID if FROZEN else "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
 

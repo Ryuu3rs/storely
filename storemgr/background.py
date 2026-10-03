@@ -15,14 +15,36 @@ from pathlib import Path
 from . import DATA_DIR, FROZEN, ROOT, health, launcher, storequeue, winapps, winsys, wpm
 from .winapps import ps, q
 
-TASK = "My Store background updates"
+TASK = "Unjammed background updates"
+OLD_TASK = "My Store background updates"     # this app's name before 1.2
 STATUS_FILE = DATA_DIR / "background_status.json"
 
 
-def register(hours: int = 6) -> tuple[bool, str]:
+def _command() -> list[str]:
     cmd = launcher("--auto")
     if not FROZEN:      # from source: the windowless Python, so no console flashes up
         cmd[0] = str(Path(sys.executable).with_name("pythonw.exe"))
+    return cmd
+
+
+def refresh() -> str:
+    """Keep the task pointing at this installed copy (after a move or the rename) and carry the pre-1.2 task over.
+    Only the installed app does this - a copy run from source must not take over the real one's task."""
+    if not FROZEN:
+        return ""
+    r = ps(f"foreach ($n in {q(TASK)}, {q(OLD_TASK)}) {{ $t = Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue;"
+           " if ($t) { \"$n|$($t.Actions[0].Execute)\" } }", timeout=30)
+    found = dict(line.split("|", 1) for line in r.stdout.splitlines() if "|" in line)
+    if not found or found.get(TASK, "").lower() == _command()[0].lower() and OLD_TASK not in found:
+        return ""
+    ok, err = register()
+    if ok and OLD_TASK in found:
+        ps(f"Unregister-ScheduledTask -TaskName {q(OLD_TASK)} -Confirm:$false -ErrorAction SilentlyContinue", timeout=30)
+    return "background updates moved to this copy" if ok else f"couldn't update the background task: {err}"
+
+
+def register(hours: int = 6) -> tuple[bool, str]:
+    cmd = _command()
     script = (f"$a = New-ScheduledTaskAction -Execute {q(cmd[0])} -Argument {q(subprocess.list2cmdline(cmd[1:]))}"
               f" -WorkingDirectory {q(ROOT)};"
               f"$t1 = New-ScheduledTaskTrigger -AtLogOn -User \"$env:USERDOMAIN\\$env:USERNAME\"; $t1.Delay = 'PT5M';"
@@ -59,7 +81,7 @@ def status() -> dict:
 
 
 def run(settings: dict) -> dict:
-    """One background pass (`MyStore.exe --auto`, or `cli.py auto`)."""
+    """One background pass (`Unjammed.exe --auto`, or `cli.py auto`)."""
     from .engine import Engine, NotYetOut
     from .browse import Browse
     t0 = time.time()
@@ -115,13 +137,13 @@ def run(settings: dict) -> dict:
     if out["updated"] or out["desktop"]:
         lines.append(f"Updated {len(out['updated']) + len(out['desktop'])}: " + ", ".join((out["updated"] + out["desktop"])[:4]))
     if out["needs_admin"]:
-        lines.append(f"{len(out['needs_admin'])} need admin - open My Store")
+        lines.append(f"{len(out['needs_admin'])} need admin - open Unjammed")
     if out["failed"]:
-        lines.append(f"{len(out['failed'])} failed - see My Store")
+        lines.append(f"{len(out['failed'])} failed - see Unjammed")
     if out["jam"] and "stuck" in out["jam"]:
-        lines.append(f"Windows' installer jammed ({out['jam']}) - open My Store > Health")
+        lines.append(f"Windows' installer jammed ({out['jam']}) - open Unjammed > Health")
     if lines and settings.get("notify", True):
-        winsys.toast("My Store", "\n".join(lines))
+        winsys.toast("Unjammed", "\n".join(lines))
     return out
 
 

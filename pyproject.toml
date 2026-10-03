@@ -1,5 +1,5 @@
 [project]
-name = "mystore"
+name = "unjammed"
 description = "A Microsoft Store replacement for Windows that doesn't jam: browse, install and update Store apps."
 requires-python = ">=3.12"
 license = "MIT"

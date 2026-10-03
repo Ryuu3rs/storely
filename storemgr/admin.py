@@ -63,7 +63,7 @@ def _fail(msg: str) -> dict:
 def _elevated(action: str, *args: str, timeout: float = 300) -> dict:
     bad = untrusted_code()
     if bad:
-        return _fail("Admin actions only run from the installed My Store, because this copy's files can be changed "
+        return _fail("Admin actions only run from the installed Unjammed, because this copy's files can be changed "
                      f"without admin rights: {bad[0]}")
     job = secrets.token_hex(16)
     cmd = launcher("--elevated", action, "--job", job, *args)

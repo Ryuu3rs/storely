@@ -17,7 +17,7 @@ from .download import Cancelled, fetch
 from .fe3 import PackageFile
 from .winsys import InstallLock
 
-log = logging.getLogger("mystore")
+log = logging.getLogger("unjammed")
 if not log.handlers:
     h = logging.FileHandler(LOG_FILE, encoding="utf-8")
     h.setFormatter(logging.Formatter("%(asctime)s  %(levelname)s  %(message)s"))
@@ -42,7 +42,7 @@ CHANGELOG_FILE = DATA_DIR / "changelog.json"
 
 
 def _changelog(app, old: str, new: str, pkg) -> None:
-    """Per-app record of what My Store installed and when - the 'What's new' history."""
+    """Per-app record of what Unjammed installed and when - the 'What's new' history."""
     try:
         data = json.loads(CHANGELOG_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):

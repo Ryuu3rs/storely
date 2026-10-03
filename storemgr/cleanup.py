@@ -1,4 +1,4 @@
-"""Clean-up and disk usage: My Store's own caches, Windows' leftover 'Deleted' app folders, size of each app."""
+"""Clean-up and disk usage: Unjammed's own caches, Windows' leftover 'Deleted' app folders, size of each app."""
 
 from __future__ import annotations
 

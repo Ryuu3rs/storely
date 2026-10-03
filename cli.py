@@ -1,6 +1,6 @@
-"""Headless My Store.
+"""Headless Unjammed.
   python cli.py list | updates | update <name-or-family> [--close] | queue | health
-  python cli.py auto                  one background pass (same as MyStore.exe --auto)
+  python cli.py auto                  one background pass (same as Unjammed.exe --auto)
   python cli.py export <file.json>    save the list of Store apps on this PC
   python cli.py import <file.json>    install everything in that list that is missing (store apps)"""
 
@@ -23,7 +23,7 @@ def find(e, key):
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else "updates"
     if cmd in ("--version", "version"):
-        print(f"My Store {__version__}")
+        print(f"Unjammed {__version__}")
         return 0
     s = settings.load()
     if cmd == "auto":
