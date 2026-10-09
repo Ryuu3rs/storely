@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 
+import psutil
+
 from . import storequeue
+from .diag import log
 from .winapps import ps
 
 STUCK_MINUTES = 10
@@ -30,11 +34,15 @@ class StuckJob:
 
 def installer_jobs(hours: float = 12) -> list[StuckJob]:
     """Jobs that were de-queued/started but never logged success or failure, oldest first."""
-    r = ps("Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-AppXDeploymentServer/Operational';"
-           f"StartTime=(Get-Date).AddHours(-{hours}); Id=607,400,401,404}} -MaxEvents 4000 -ErrorAction SilentlyContinue |"
-           " ForEach-Object { $m = $_.Message -replace '\\s+',' '; [pscustomobject]@{ id=$_.Id; t=$_.TimeCreated.ToString('o');"
-           " m=$m.Substring(0, [Math]::Min(400, $m.Length)) } } | ConvertTo-Json -Compress",
-           timeout=120)
+    try:
+        r = ps("Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-AppXDeploymentServer/Operational';"
+               f"StartTime=(Get-Date).AddHours(-{hours}); Id=607,400,401,404}} -MaxEvents 4000 -ErrorAction SilentlyContinue |"
+               " ForEach-Object { $m = $_.Message -replace '\\s+',' '; [pscustomobject]@{ id=$_.Id; t=$_.TimeCreated.ToString('o');"
+               " m=$m.Substring(0, [Math]::Min(400, $m.Length)) } } | ConvertTo-Json -Compress",
+               timeout=120)
+    except subprocess.TimeoutExpired:      # Windows is busy (e.g. just after an unjam restarted its services)
+        log.warning("reading the installer's event log timed out - skipped this check")
+        return []
     try:
         events = json.loads(r.stdout or "[]")
     except ValueError:
@@ -72,20 +80,27 @@ def installer_jobs(hours: float = 12) -> list[StuckJob]:
 
 
 def _boot_time():
-    r = ps("(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToString('o')", timeout=30)
+    """When Windows started - straight from the system, no PowerShell (which can stall while services restart)."""
     try:
-        return datetime.fromisoformat(r.stdout.strip())
-    except ValueError:
+        return datetime.fromtimestamp(psutil.boot_time()).astimezone()
+    except (OSError, ValueError):
         return None
 
 
+SERVICES = ("AppXSvc", "InstallService", "ClipSVC", "wuauserv", "DoSvc")
+_STATE = {"running": "Running", "stopped": "Stopped", "start_pending": "Starting", "stop_pending": "Stopping",
+          "paused": "Paused", "pause_pending": "Pausing", "continue_pending": "Resuming"}
+
+
 def services() -> dict[str, str]:
-    r = ps("Get-Service AppXSvc, InstallService, ClipSVC, wuauserv, DoSvc | ForEach-Object { [pscustomobject]@{ n=$_.Name; s=\"$($_.Status)\" } } |"
-           " ConvertTo-Json -Compress", timeout=30)
-    try:
-        return {d["n"]: d["s"] for d in json.loads(r.stdout)}
-    except (ValueError, TypeError):
-        return {}
+    out = {}
+    for name in SERVICES:
+        try:
+            st = psutil.win_service_get(name).status()
+        except (psutil.Error, OSError):
+            continue
+        out[name] = _STATE.get(st, st.title())
+    return out
 
 
 def status() -> dict:

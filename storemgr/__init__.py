@@ -11,7 +11,7 @@ import truststore
 truststore.inject_into_ssl()
 
 APP_NAME = "Storely"
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 APP_ID = "Storely.App"     # Windows AppUserModelID: groups the taskbar button under our icon
 FROZEN = bool(getattr(sys, "frozen", False))
 ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent

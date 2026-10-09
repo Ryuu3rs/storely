@@ -37,14 +37,25 @@ _PRELUDE = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; if ($PSStyle) { $
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
+class WindowsBusy(subprocess.TimeoutExpired):
+    """A PowerShell call that took too long - says so in plain words instead of dumping the command."""
+
+    def __str__(self) -> str:
+        return (f"Windows didn't answer within {int(self.timeout)} seconds - it may still be busy (for example just "
+                "after an unjam restarts its installer). Try again in a minute.")
+
+
 def ps(script: str, timeout: float = 120) -> subprocess.CompletedProcess:
     # an inherited PSModulePath from PowerShell 7 makes 5.1 load 7's modules and fail; 5.1 rebuilds its default when
     # it's absent (7 needs it kept: that's how it finds the Appx module in System32)
     env = None if PWSH.lower().endswith("pwsh.exe") else \
         {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
-    r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", _PRELUDE + script],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
-                       creationflags=NO_WINDOW, env=env)
+    try:
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", _PRELUDE + script],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
+                           creationflags=NO_WINDOW, env=env)
+    except subprocess.TimeoutExpired as e:
+        raise WindowsBusy(e.cmd, e.timeout) from None
     r.stdout, r.stderr = _ANSI.sub("", r.stdout or ""), _ANSI.sub("", r.stderr or "")
     return r
 

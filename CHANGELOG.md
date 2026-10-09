@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.1] - 2026-10-09
+
+### Fixed
+
+- Right after **Unjam**, Windows can take a while to answer while its install services restart. Storely asked it for
+  the last boot time through PowerShell and showed a raw "timed out" command when that was slow. Boot time and service
+  status now come straight from Windows (instant), the installer-log check is skipped for one round if Windows is busy,
+  and any slow answer is reported in plain words.
+
 ## [1.2.0] - 2026-10-03
 
 First public release, and a new name: My Store is now **Storely**. Installing it upgrades My Store in place and
