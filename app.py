@@ -84,6 +84,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.winget_ups = []
         self.winget_state = ""
         self.self_update = None
+        self._pending_update_all = False
         QTimer.singleShot(50, self.rescan)
         self.jobs.run(background.refresh, lambda msg, e: msg and self.statusBar().showMessage(msg, 8000))
         QTimer.singleShot(20000, self.check_self_update)
@@ -226,6 +227,9 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             self.statusBar().showMessage(f"Could not read installed apps: {error}")
             return
         self.statusBar().showMessage(f"{len(self.engine.apps)} Store apps")
+        self.queue.ready = True            # saved downloads may start now that we know what's installed
+        if self._pending_update_all and not (self.settings["check_on_start"] or self.last_check):
+            self.check_updates()
         self.render_current()
         if self.settings["check_on_start"] or self.last_check:
             self.check_updates()
@@ -268,8 +272,11 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.checking = False
         self.last_check = time.time()
         self.framework_ups = self.engine.framework_updates() if not error else []
+        self.queue.runtimes_ready = True
         if self.settings.get("winget", True):
             self.jobs.run(self._winget_list, self._winget_listed)
+        else:
+            QTimer.singleShot(0, self._run_pending_update_all)
         n = sum(1 for a in self.engine.apps.values() if a.update_available) + len(self.framework_ups)
         self.statusBar().showMessage(f"Checked {datetime.now():%H:%M} - {n} update(s)" if not error else f"Check failed: {error}")
         self.refresh_badges()
@@ -290,6 +297,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.winget_ups = ups or []
         self.winget_state = "missing" if ups is None and not error else (f"error: {error}" if error else "ok")
         self.refresh_badges()
+        self._run_pending_update_all()
         if self.current in ("updates", "home"):
             self.render_current()
 
@@ -393,8 +401,12 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             return
         if ok:
             self.failures.pop(it.key, None)
-            if it.kind == "store":
-                debloat.forget(it.key)        # it was on the "put back" list: it's back
+            if it.kind == "store" and it.state == "done":
+                debloat.forget(it.key)        # it was on the "put back" list: it's back (not for "not out yet")
+            elif it.kind == "winget":
+                self.winget_ups = [u for u in self.winget_ups if u.id != it.key]
+            elif it.kind == "framework":
+                self.framework_ups = [(h, p) for h, p in self.framework_ups if f"{h.name}|{h.arch}" != it.key]
         else:
             self.failures[it.key] = (winapps.explain(msg), msg)
             if not self.isVisible():
@@ -423,13 +435,20 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         if self.current in ("updates", "home", "health", "app", "library"):
             self.render_current()
 
+    def update_counts(self) -> tuple[int, int]:
+        """(your apps: Store apps + desktop apps from the Store + Windows runtimes, other programs via winget).
+        One source for every number on screen, and exactly what each "Update all" button queues."""
+        apps = sum(1 for a in self.engine.apps.values() if a.update_available) + \
+            sum(1 for d in self.desktop_apps.values() if d.update_available) + len(self.framework_ups)
+        return apps, len(self.winget_ups)
+
     def refresh_badges(self, rows=True):
-        n = sum(1 for a in self.engine.apps.values() if a.update_available) + \
-            sum(1 for d in self.desktop_apps.values() if d.update_available) + len(self.framework_ups) + len(self.winget_ups)
+        n, others = self.update_counts()
         live = len(self.queue.pending())
         self.nav["updates"].setText(f"Updates ({n})" if n else "Updates")
         self.nav["downloads"].setText(f"Downloads ({live})" if live else "Downloads")
-        self.tray.setToolTip(f"{APP_NAME} - {n} update(s)" + (f", {live} in Downloads" if live else ""))
+        self.tray.setToolTip(f"{APP_NAME} - {n} app update(s)" + (f", {others} other program(s)" if others else "")
+                             + (f", {live} in Downloads" if live else ""))
         if rows:
             for fam in list(self.rows):
                 self._refresh_family(fam)
@@ -471,11 +490,19 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         elif app.entries:
             winapps.launch(app.family, app.entries[0].app_id)
 
-    def update_all(self):
+    def _run_pending_update_all(self):
+        if self._pending_update_all and self.last_check and not self.checking and \
+                (not self.settings.get("winget", True) or self.winget_state):
+            self._pending_update_all = False
+            self.update_all()
+
+    def update_all(self, include_others: bool = False):
+        """Your apps and Windows runtimes. Other programs (winget) only when asked: their installers can ask for
+        admin, so they're never added behind an "Update all (6)" that would really start 70 installs."""
         apps = [a for a in self.engine.apps.values() if a.update_available and not self.queue.find(a.family)]
         desk = [d for d in self.desktop_apps.values() if d.update_available and not self.queue.find(d.product_id)]
         fws = [(h, p) for h, p in self.framework_ups if not self.queue.find(f"{h.name}|{h.arch}")]
-        others = [u for u in self.winget_ups if not self.queue.find(u.id)]
+        others = [u for u in self.winget_ups if not self.queue.find(u.id)] if include_others else []
         if not apps and not desk and not fws and not others:
             self.statusBar().showMessage("Nothing to update", 5000)
             return
@@ -692,10 +719,9 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             self.show_page(kind)
         elif kind == "update-all":     # from our own notification: only with its one-time token
             if winsys.take_action_token("update-all", value):
-                self.show_page("updates")
-                QTimer.singleShot(1500, self.update_all)
-            else:
-                self.show_page("updates")
+                self._pending_update_all = True       # after the first check, or it would find nothing yet
+                self._run_pending_update_all()
+            self.show_page("updates")
 
 
 PRODUCT_ID = re.compile(r"[A-Za-z0-9]{12}")

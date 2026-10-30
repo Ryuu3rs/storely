@@ -6,6 +6,7 @@ keeps the partial file, so resuming carries on where it left off."""
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import uuid
@@ -57,6 +58,11 @@ class Queue(QObject):
         self._why: dict[str, str] = {}
         self._approval: dict[str, tuple] = {}     # item id -> (app, prepared download) waiting for the user's OK
         self.paused_all = False
+        # nothing starts until the app list is read (ready) - a resumed item would otherwise run as a fresh install
+        # with no version-line or permission checks; runtime items also need the update check (runtimes_ready)
+        self.ready = False
+        self.runtimes_ready = False
+        self._save_lock = threading.Lock()
         self._load()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._schedule)
@@ -77,7 +83,11 @@ class Queue(QObject):
     def save(self):
         keep = [i for i in self.items if i.state not in FINAL] + \
                sorted([i for i in self.items if i.state in FINAL], key=lambda i: -i.finished)[:40]
-        QUEUE_FILE.write_text(json.dumps([asdict(i) for i in keep]), encoding="utf-8")
+        data = json.dumps([asdict(i) for i in keep])
+        with self._save_lock:          # worker threads save too: write whole, then swap, so the file is never half-written
+            tmp = QUEUE_FILE.with_suffix(".tmp")
+            tmp.write_text(data, encoding="utf-8")
+            os.replace(tmp, QUEUE_FILE)
 
     # ------------------------------------------------------------------ adding
     def find(self, key: str) -> Item | None:
@@ -171,6 +181,9 @@ class Queue(QObject):
         it = self._get(iid)
         if not it:
             return
+        if it.state == "approve":
+            self.decline(iid)
+            return
         if it.state in ("downloading", "waiting", "installing") and iid in self._ctl:
             self._why[iid] = "cancelled"
             self._ctl[iid].set()
@@ -182,9 +195,13 @@ class Queue(QObject):
         it = self._get(iid)
         if not it:
             return
-        i = self.items.index(it)
-        j = max(0, min(len(self.items) - 1, i + delta))
-        self.items.insert(j, self.items.pop(i))
+        live = [i for i in self.items if i.state not in FINAL]     # finished ones are shown separately: skip them
+        k = live.index(it) if it in live else -1
+        if k < 0 or not 0 <= k + delta < len(live):
+            return
+        other = live[k + delta]
+        a, b = self.items.index(it), self.items.index(other)
+        self.items[a], self.items[b] = other, it
         self.save()
         self.changed.emit("")
 
@@ -226,7 +243,7 @@ class Queue(QObject):
         return [i for i in self.items if i.state not in FINAL]
 
     def _schedule(self):
-        if self.paused_all:
+        if self.paused_all or not self.ready:
             return
         running_dl = sum(1 for i in self.items if i.state == "downloading")
         limit = int(self.settings.get("parallel_downloads", 2))
@@ -243,7 +260,7 @@ class Queue(QObject):
         for it in self.items:
             if running_dl >= limit:
                 break
-            if it.state == "queued":
+            if it.state == "queued" and (it.kind != "framework" or self.runtimes_ready):
                 running_dl += 1
                 self._start(it)
 
@@ -334,7 +351,7 @@ class Queue(QObject):
         self._ctl.pop(it.id, None)
         if it.state != "skipped":
             it.state = "done" if ok else "failed"
-        it.msg = msg.splitlines()[0][:200] if msg else it.msg
+        it.msg = (msg.splitlines() or [it.msg])[0][:200] if msg else it.msg
         it.error = "" if ok else msg
         it.result = msg
         it.finished = time.time()
@@ -356,7 +373,7 @@ class Queue(QObject):
             log.error("queue store %s failed: %s", it.title, e)
         self._ctl.pop(it.id, None)
         it.state = "done" if ok else "failed"
-        it.msg, it.error, it.result, it.finished = msg.splitlines()[0][:200], "" if ok else msg, msg, time.time()
+        it.msg, it.error, it.result, it.finished = (msg.splitlines() or ["Failed"])[0][:200], "" if ok else msg, msg, time.time()
         self._touch(it)
         self.finished.emit(it.id, ok, msg)
 

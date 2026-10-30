@@ -31,41 +31,38 @@ class BrowsePages:
         left = QVBoxLayout()
         hour = datetime.now().hour
         left.addWidget(label(("Good morning" if hour < 12 else "Good afternoon" if hour < 18 else "Good evening") + self.greeting_name(), "H1"))
-        bits = [f"{len(apps)} Store apps"] if apps else ["Reading your apps..."]
-        if apps:
-            bits.append(f"{len(ups)} update(s)" if ups else "all up to date")
-        h = self.health
-        if h:
-            bits.append("⚠ installer jammed" if h["stuck"] else "installer healthy")
+        n, others = self.update_counts()
+        stuck = bool(self.health and not self.health.get("healthy", True))
         pend = len(self.queue.pending())
-        if pend:
-            bits.append(f"{pend} in Downloads")
-        left.addWidget(label("   ·   ".join(bits), "Muted"))
+        if not apps:
+            status = "Reading your apps..."
+        elif stuck:
+            status = "Windows' app installer is stuck - downloads won't finish until it's cleared."
+        elif n:
+            status = f"{n} update{'s' if n != 1 else ''} ready for your apps." + (f" {pend} in Downloads." if pend else "")
+        else:
+            status = "Your apps are up to date." + (f" {pend} in Downloads." if pend else "")
+        left.addWidget(label(status, "Muted", wrap=True))
         left.addStretch()
         btns = QHBoxLayout()
-        ua = button(f"Update all ({len(ups)})", accent=True, icon="download")
-        ua.setEnabled(bool(ups))
-        ua.clicked.connect(self.update_all)
-        btns.addWidget(ua)
-        for text, page in (("Downloads", "downloads"), ("Library", "library"), ("Health", "health")):
-            b = button(text)
-            b.clicked.connect(lambda _, p=page: self.show_page(p))
-            btns.addWidget(b)
+        if stuck:
+            main = button("Fix stuck downloads", accent=True, icon="shield", tip="Needs one admin prompt")
+            main.clicked.connect(lambda: self.show_page("health"))
+        elif n:
+            main = button(f"Update all ({n})", accent=True, icon="download")
+            main.clicked.connect(lambda: self.update_all())
+        else:
+            main = button("Check for updates", icon="refresh")
+            main.clicked.connect(self.check_updates)
+        btns.addWidget(main)
+        if others:
+            ob = button(f"Other programs ({others})", tip="Updates for programs that didn't come from the Store")
+            ob.clicked.connect(lambda: self.show_page("updates"))
+            btns.addWidget(ob)
         btns.addStretch()
         left.addLayout(btns)
         hl.addLayout(left, 1)
         lay.addWidget(hero)
-        if h and h["stuck"]:
-            warn = QFrame()
-            warn.setObjectName("Card")
-            warn.setStyleSheet(f"QFrame#Card{{background:{K.WARN_CARD_BG};border:1px solid {K.WARN_CARD_BORDER}}}")
-            wl = QHBoxLayout(warn)
-            wl.addWidget(label(f"⚠  Windows' app installer is jammed - {len(h['stuck'])} job(s) stuck."))
-            wl.addStretch()
-            b = button("Unjam now", accent=True, icon="unjam")
-            b.clicked.connect(lambda: self.jobs.unjam(None))
-            wl.addWidget(b)
-            lay.addWidget(warn)
         lay.addWidget(self._category_chips())
         if ups:
             sh = Shelf(self, f"Updates for your apps ({len(ups)})", lambda: self.show_page("updates"))
@@ -77,7 +74,7 @@ class BrowsePages:
             sh.fill([Card(w["product_id"], w["title"], icon_url=w.get("icon_url"), tile_color=w.get("tile_color"),
                           price_text=w.get("price_text", "")) for w in wl])
             lay.addWidget(sh)
-        for key in ("top_free_apps", "top_free_games", "trending_apps", "best_games", "top_paid_apps"):
+        for key in ("top_free_apps", "top_free_games", "trending_apps", "best_games"):    # paid apps need the Store
             sh = Shelf(self, CHARTS[key][2], lambda k=key: self.open_chart(k))
             lay.addWidget(sh)
             self.jobs.run(lambda k=key: self.browse.chart(k, size=16)[1],

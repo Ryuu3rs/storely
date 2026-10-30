@@ -35,8 +35,11 @@ class ManagePages:
         head.addWidget(label("Checking..." if self.checking else when, "Muted"))
         ck = button("Check for updates", icon="refresh")
         ck.clicked.connect(self.check_updates)
-        ua = button("Update all", accent=True, icon="download")
-        ua.clicked.connect(self.update_all)
+        n, _others = self.update_counts()
+        ua = button(f"Update all ({n})" if n else "Update all", accent=bool(n), icon="download",
+                    tip="Your apps and Windows runtimes. Other programs have their own button below.")
+        ua.setEnabled(bool(n))
+        ua.clicked.connect(lambda: self.update_all())
         head.addWidget(ck)
         head.addWidget(ua)
         lay.addLayout(head)
@@ -91,11 +94,11 @@ class ManagePages:
         if self.settings.get("winget", True):
             others = self.winget_ups
             wh = QHBoxLayout()
-            wh.addWidget(label(f"Other apps ({len(others)})" if others else "Other apps", "H2"))
+            wh.addWidget(label(f"Other programs ({len(others)})" if others else "Other programs", "H2"))
             wh.addStretch()
             if others:
-                wa = button("Update all other apps", icon="download")
-                wa.clicked.connect(lambda: ([self.queue.add_winget(u) for u in others], self.show_page("downloads")))
+                wa = button(f"Update all {len(others)} programs", icon="download")
+                wa.clicked.connect(lambda: self._update_others(others))
                 wh.addWidget(wa)
             lay.addLayout(wh)
             note = {"missing": "winget (Microsoft's App Installer) isn't on this PC - get 'App Installer' from the Store "
@@ -127,6 +130,15 @@ class ManagePages:
                 rl.addWidget(b)
                 lay.addWidget(row)
         lay.addStretch()
+
+    def _update_others(self, others):
+        if QMessageBox.question(self, "Storely", f"Update {len(others)} other programs?\n\nSome of their installers will "
+                                "ask for admin permission themselves - Windows shows a prompt for each of those.\n\n"
+                                + "\n".join(u.name for u in others[:15]) + ("\n..." if len(others) > 15 else "")) != QMessageBox.Yes:
+            return
+        for u in others:
+            self.queue.add_winget(u)
+        self.show_page("downloads")
 
     def _simple_row(self, title: str, sub: str, key: str, add) -> QFrame:
         row = QFrame()
