@@ -336,3 +336,13 @@ def test_install_reports_cancelled_uac(upd_dir, monkeypatch):
     monkeypatch.setitem(updater._VERIFIED, X64, hashlib.sha256(PAYLOAD).hexdigest())
     with pytest.raises(RuntimeError, match="cancelled"):
         updater.install(upd_dir / X64)
+
+
+def test_install_on_close_tells_setup_not_to_reopen(upd_dir, monkeypatch):
+    ran = []
+    monkeypatch.setattr(updater, "_shell_open", lambda f, p, c: ran.append(p) or 0)
+    upd_dir.mkdir()
+    (upd_dir / X64).write_bytes(PAYLOAD)
+    monkeypatch.setitem(updater._VERIFIED, X64, hashlib.sha256(PAYLOAD).hexdigest())
+    updater.install(upd_dir / X64, relaunch=False)
+    assert ran == ["/SP- /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /NORELAUNCH=1"]

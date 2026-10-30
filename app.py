@@ -72,6 +72,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.winget_ups = []
         self.winget_state = ""
         self.self_update = None
+        self.ready_update = None        # (version, path) downloaded + verified, installs as Storely closes
         self._pending_update_all = False
 
         self.jobs.progress.connect(lambda fam, *a: self._refresh_family(fam))
@@ -308,7 +309,8 @@ class Main(QMainWindow, BrowsePages, ManagePages):
 
     def check_self_update(self, manual=False):
         """New Storely release on GitHub (signed with our own key - see storemgr.updater)."""
-        if not manual and (not FROZEN or self.settings.get("self_update", "notify") == "off"):
+        mode = self.settings.get("self_update", "notify")
+        if not manual and (not FROZEN or mode == "off"):
             return
 
         def done(rel, err):
@@ -317,30 +319,59 @@ class Main(QMainWindow, BrowsePages, ManagePages):
                 QMessageBox.information(self, APP_NAME, f"Couldn't check for a new Storely: {err}" if err else
                                         f"Storely {rel.version} is available." if rel else f"You have the newest Storely ({__version__}).")
             if rel and (manual or rel.version != self.settings.get("skipped_update")):
-                if not manual:
+                if not manual and mode == "on_close":
+                    self.install_self_update(on_close=True)
+                elif not manual:
                     self.notify(APP_NAME, f"Storely {rel.version} is available - see Settings > Storely updates")
                 if self.current in ("home", "settings"):
                     self.render_current()
         self.jobs.run(updater.check, done)
 
-    def install_self_update(self):
+    def install_self_update(self, on_close=False):
+        """Install the new Storely now, or (on_close) download it quietly and install it when Storely closes."""
         rel = getattr(self, "self_update", None)
         if not rel:
+            return
+        if self.ready_update and self.ready_update[0] == rel.version:
+            if not on_close:
+                self._launch_update(self.ready_update[1], relaunch=True)
             return
         self.statusBar().showMessage(f"Downloading Storely {rel.version}...")
 
         def done(path, err):
             if err:
-                QMessageBox.warning(self, APP_NAME, f"The update didn't download: {err}")
+                if on_close:
+                    self.statusBar().showMessage(f"The Storely update didn't download: {err}", 15000)
+                else:
+                    QMessageBox.warning(self, APP_NAME, f"The update didn't download: {err}")
                 return
-            try:
-                updater.install(path)
-            except Exception as e:
+            if on_close:
+                self.ready_update = (rel.version, path)
+                self.statusBar().showMessage(f"Storely {rel.version} is ready - it installs when you close Storely", 15000)
+                if self.current in ("home", "settings"):
+                    self.render_current()
+                return
+            self._launch_update(path, relaunch=True)
+        self.jobs.run(lambda: updater.download(rel), done)
+
+    def _launch_update(self, path, relaunch):
+        try:
+            updater.install(path, relaunch=relaunch)
+        except Exception as e:
+            if relaunch:
                 QMessageBox.warning(self, APP_NAME, str(e))
-                return
+            return False
+        self.ready_update = None
+        if relaunch:
             self.queue.save()
             self.quit_app(ask=False)  # setup replaces the files, then starts the new version
-        self.jobs.run(lambda: updater.download(rel), done)
+        return True
+
+    def _install_ready_update(self):
+        """Storely is closing for real: start the update the user chose to install now (Windows asks for admin once).
+        Not while Windows itself is shutting down or signing out - no admin prompt then."""
+        if self.ready_update and not QApplication.instance().isSavingSession():
+            self._launch_update(self.ready_update[1], relaunch=False)
 
     def check_health(self):
         self.jobs.run(health.status, self._health)
@@ -700,6 +731,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.queue.save()
         self.engine.catalog.save()
         self.tray.hide()
+        self._install_ready_update()
         QApplication.quit()
 
     def closeEvent(self, e):
@@ -716,6 +748,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.queue.save()
         self.tray.hide()
         self.engine.catalog.save()
+        self._install_ready_update()
         super().closeEvent(e)
 
 

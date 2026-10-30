@@ -783,26 +783,52 @@ class ManagePages:
         lay.addWidget(label("Storely updates", "H2"))
         ur = QHBoxLayout()
         rel = getattr(self, "self_update", None)
-        ur.addWidget(label(f"Storely {rel.version} is available." if rel else
+        ready = self.ready_update if rel and self.ready_update and self.ready_update[0] == rel.version else None
+        ur.addWidget(label(f"Storely {rel.version} is downloaded and checked. It installs when you close Storely "
+                           "(Windows asks for admin once)." if ready else
+                           f"Storely {rel.version} is available." if rel else
                            f"You have Storely {__version__}. New versions come from GitHub, checked against Storely's "
                            "own signature before they install.", "Muted", wrap=True), 1)
         if rel:
-            gi = button("Install now", accent=True)
+            gi = button("Install now", accent=True, icon="shield")
             gi.clicked.connect(self.install_self_update)
+            ur.addWidget(gi)
+            if ready:
+                dn = button("Don't install it")
+                dn.clicked.connect(lambda: (setattr(self, "ready_update", None), self.render_settings()))
+                ur.addWidget(dn)
+            else:
+                oc = button("Install when I close Storely")
+                oc.clicked.connect(lambda: self.install_self_update(on_close=True))
+                ur.addWidget(oc)
             sk = button("Skip this version")
             sk.clicked.connect(lambda: (self._set("skipped_update", rel.version), setattr(self, "self_update", None),
-                                        self.render_settings()))
-            ur.addWidget(gi)
+                                        setattr(self, "ready_update", None), self.render_settings()))
             ur.addWidget(sk)
         else:
             cn = button("Check now")
             cn.clicked.connect(lambda: self.check_self_update(manual=True))
             ur.addWidget(cn)
         lay.addLayout(ur)
-        upd = QCheckBox("Tell me when there's a new Storely")
-        upd.setChecked(s.get("self_update", "notify") != "off")
-        upd.toggled.connect(lambda v: self._set("self_update", "notify" if v else "off"))
-        lay.addWidget(upd)
+        um = QHBoxLayout()
+        um.addWidget(label("When there's a new Storely:"))
+        upd = QComboBox()
+        modes = (("notify", "Tell me"), ("on_close", "Get it ready and install it when I close Storely"),
+                 ("off", "Don't check"))
+        for key, text in modes:
+            upd.addItem(text, key)
+        keys = [k for k, _ in modes]
+        upd.setCurrentIndex(keys.index(s.get("self_update")) if s.get("self_update") in keys else 0)
+        upd.setAccessibleName("When there's a new Storely")
+
+        def mode_changed(i):
+            self._set("self_update", upd.itemData(i))
+            if upd.itemData(i) == "on_close" and rel:
+                self.install_self_update(on_close=True)
+        upd.currentIndexChanged.connect(mode_changed)
+        um.addWidget(upd)
+        um.addStretch()
+        lay.addLayout(um)
 
         holds = s.get("holds") or {}
         lay.addWidget(label("Held-back apps", "H2"))

@@ -99,8 +99,8 @@ Root: HKLM; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueN
 Filename: "{app}\{#AppExe}"; Parameters: "--enable-background"; StatusMsg: "Turning on background updates..."; Tasks: background; Flags: runasoriginaluser runhidden waituntilterminated; Check: not WizardSilent
 Filename: "ms-settings:defaultapps?registeredAppMachine=Storely"; Tasks: storelinks; Flags: shellexec runasoriginaluser nowait; Check: not WizardSilent
 Filename: "{app}\{#AppExe}"; Description: "Open Storely now"; Flags: postinstall nowait skipifsilent runasoriginaluser
-; self-update runs setup silently: reopen the app afterwards
-Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
+; self-update runs setup silently: reopen the app afterwards, unless it was installed as Storely closed
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: Relaunch
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Storely background updates"" /F"; Flags: runhidden; RunOnceId: "RemoveBackgroundTask"
@@ -112,6 +112,11 @@ Type: filesandordirs; Name: "{commonappdata}\Storely\results"
 Type: filesandordirs; Name: "{commonappdata}\Storely\staging"
 
 [Code]
+function Relaunch: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:NORELAUNCH|0}') <> '1');
+end;
+
 function OldMyStorePresent: Boolean;
 begin
   { only ever touch the real pre-1.2 "My Store" install, never just anything with that name }

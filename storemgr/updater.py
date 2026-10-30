@@ -2,7 +2,8 @@
 file signed with our own Ed25519 key (tools/sign_release.py); the installer is only used if its hash is in a file whose
 signature checks out against PUBLIC_KEY below.
 
-Settings (read by the caller): self_update = "notify" (default, ask when a new version is out) | "off";
+Settings (read by the caller): self_update = "notify" (default, ask when a new version is out) | "on_close" (download
+it in the background, install when Storely closes) | "off";
 skipped_update = a version string the user chose to skip."""
 
 from __future__ import annotations
@@ -282,9 +283,10 @@ def _locked_digest(p: Path):
     return dup, sha.hexdigest()
 
 
-def install(path: Path) -> None:
+def install(path: Path, relaunch: bool = True) -> None:
     """Start a downloaded installer silently (it shows its own admin prompt and closes Storely); the caller should
-    quit right after. Re-checks the hash at launch through a handle that stops anyone swapping the file meanwhile."""
+    quit right after. relaunch=False when the user is closing Storely: setup then doesn't open it again.
+    Re-checks the hash at launch through a handle that stops anyone swapping the file meanwhile."""
     root = UPDATE_DIR.resolve()
     p = Path(path).resolve()
     if (p.parent != root or not INSTALLER_RE.fullmatch(p.name) or not p.is_file() or secure.is_reparse(path)
@@ -297,7 +299,7 @@ def install(path: Path) -> None:
     try:
         if got != expected:
             raise RuntimeError("the update changed after it was checked - not installing it")
-        err = _shell_open(str(p), INSTALLER_ARGS, str(root))
+        err = _shell_open(str(p), INSTALLER_ARGS + ("" if relaunch else " /NORELAUNCH=1"), str(root))
     finally:
         os.close(fd)
     if err:

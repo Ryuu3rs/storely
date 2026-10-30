@@ -24,7 +24,7 @@ DEFAULTS = {
     "quiet_hours": [],              # [start_hour, end_hour]: no background installs or notifications
     "winget": True,                 # also show/update other apps through winget
     "ask_new_permissions": True,    # hold updates that add risky permissions until you approve
-    "self_update": "notify",        # "notify" | "off"
+    "self_update": "notify",        # "notify" | "on_close" | "off"
     "skipped_update": "",
 }
 
