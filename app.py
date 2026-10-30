@@ -145,7 +145,10 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             sa, lay = scroll_page()
             self.pages[key] = (sa, lay)
             self.stack.addWidget(sa)
-        for key, fn in (("F5", self.rescan), ("Ctrl+F", lambda: self.search.setFocus()), ("Alt+Left", self.go_back)):
+        shortcuts = [("F5", self.rescan), ("Ctrl+F", lambda: self.search.setFocus()), ("Alt+Left", self.go_back)]
+        shortcuts += [(f"Ctrl+{i}", lambda k=k: self.show_page(k))
+                      for i, k in enumerate([*self.nav], 1)]          # Ctrl+1 Home ... Ctrl+7 Settings
+        for key, fn in shortcuts:
             a = QAction(self)
             a.setShortcut(QKeySequence(key))
             a.triggered.connect(fn)
@@ -162,6 +165,8 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         b.setCheckable(True)
         b.setFixedSize(72, 58)
         b.setCursor(Qt.PointingHandCursor)
+        b.setAccessibleName(text)
+        b.setToolTip(f"{text} (Ctrl+{len(self.nav) + 1})")
         b.clicked.connect(lambda: self.show_page(key))
         self.nav[key] = b
         return b
@@ -576,8 +581,8 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             m.addAction(K.glyph_icon("open"), "Open", lambda: winapps.launch(app.family, app.entries[0].app_id))
         if app.update_available:
             m.addAction(K.glyph_icon("download"), "Update", lambda: self.start_update(app))
-        m.addAction(K.glyph_icon("unjam", K.WARN), "Unjam", lambda: self.jobs.unjam(app))
-        m.addAction(K.glyph_icon("unjam", K.WARN), "Unjam (deep clean, admin)", lambda: self.jobs.unjam(app, deep=True))
+        m.addAction(K.glyph_icon("unjam", K.WARN), "Fix stuck install", lambda: self.jobs.unjam(app))
+        m.addAction(K.glyph_icon("shield", K.WARN), "Fix stuck install - deep clean (needs admin)", lambda: self.jobs.unjam(app, deep=True))
         hold = m.addMenu("Hold")
         cur = self.settings.get("holds", {}).get(app.family)
         hold.addAction(("✓ " if cur == "all" else "") + "Never update this app", lambda: self.set_hold(app.family, "all"))

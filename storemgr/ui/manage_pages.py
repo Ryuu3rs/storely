@@ -57,7 +57,7 @@ class ManagePages:
             fh.addStretch()
             ra = button("Retry all", icon="refresh")
             ra.clicked.connect(lambda: [self.start_update(a, ask=False) for a in failed])
-            ua2 = button("Unjam & retry all", icon="unjam", tip="Cancels the Store's stuck jobs and clears the installer "
+            ua2 = button("Fix & retry all", icon="shield", tip="Cancels the Store's stuck jobs and clears the installer "
                          "(one admin prompt), then retries each failed app")
             ua2.clicked.connect(lambda: self.unjam_and_retry(failed))
             fh.addWidget(ra)
@@ -492,13 +492,13 @@ class ManagePages:
                     lay.addWidget(label(f"  {j.package}", "Muted"))
         self._toggle(lay, "auto_unjam", "Fix jams automatically",
                      "When a jam is seen, cancel the Store's stuck items straight away (no prompt). If it's still stuck, "
-                     "you get a notification with a one-click Unjam.")
+                     "you get a notification with a one-click fix.")
         lay.addWidget(label("Stop the Microsoft Store fighting Storely", "H2"))
         off = admin.store_auto_updates_off()
         row = QHBoxLayout()
         row.addWidget(label("Microsoft Store automatic updates are " + ("OFF - Storely handles updates."
                             if off else "ON - the Store can start its own jobs for the same apps and jam them."), "Muted", wrap=True), 1)
-        tb = button("Turn Store auto-updates back on" if off else "Turn Store auto-updates off")
+        tb = button("Turn Store auto-updates back on" if off else "Turn Store auto-updates off", icon="shield")
         tb.clicked.connect(lambda: self.jobs.run(lambda: admin.store_auto_updates(off), lambda r, e: self.render_health()))
         row.addWidget(tb)
         lay.addLayout(row)
@@ -546,7 +546,7 @@ class ManagePages:
                 cbox.addLayout(r)
             r = QHBoxLayout()
             r.addWidget(label("  Old app versions Windows failed to delete (WindowsApps\\Deleted) - needs one admin prompt", "Muted"), 1)
-            b = button("Clean up")
+            b = button("Clean up", icon="shield")
             b.clicked.connect(lambda: self.jobs.run(cleanup.windows_leftovers, lambda res, e: (
                 QMessageBox.information(self, "Storely", f"Freed {fmt_size((res or {}).get('freed', 0))} "
                                         f"({fmt_size((res or {}).get('left', 0))} still in use)" if res and res.get("ok")
@@ -655,7 +655,7 @@ class ManagePages:
                 row2 = QHBoxLayout()
                 mk = QComboBox()
                 mk.addItems([v.label for v in others])
-                b = button("Make it Windows' default for every app (admin)")
+                b = button("Make it Windows' default for every app", icon="shield", tip="Needs admin: Windows will ask once")
                 b.clicked.connect(lambda: self.jobs.run(lambda: volumes.add_and_set_default(others[mk.currentIndex()].drive),
                                                         lambda r, e: (QMessageBox.information(self, "Storely", (r or (False, str(e)))[1]
                                                                       or "Done"), self.render_settings())))

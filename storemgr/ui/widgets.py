@@ -180,7 +180,7 @@ class StoreTile(Clickable):
         state = win.card_state(card)
         badge = label(state or card.price_text or "", "Chip")
         if state == "Update":
-            badge.setStyleSheet(f"background:{K.ACCENT};color:black;border-radius:10px;padding:2px 8px")
+            badge.setStyleSheet(f"background:{K.ACCENT};color:{K.ACCENT_TEXT};border-radius:10px;padding:2px 8px")
         elif state == "Installed":
             badge.setStyleSheet(f"background:{K.GOOD_BG};color:{K.GOOD};border-radius:10px;padding:2px 8px")
         bottom.addWidget(badge)
@@ -283,7 +283,7 @@ class AppRow(QFrame):
         self.primary.setFixedWidth(104)
         self.primary.clicked.connect(lambda: win.row_primary(self.app))
         lay.addWidget(self.primary)
-        self.more = button("", flat=True, icon="more", tip="More: Unjam, Repair, Hold, Reset, Uninstall...")
+        self.more = button("", flat=True, icon="more", tip="More: fix stuck install, repair, hold, versions, reset, uninstall...")
         self.more.setFixedWidth(36)
         self.more.clicked.connect(lambda: win.app_menu(self.app, self.more.mapToGlobal(self.more.rect().bottomLeft())))
         lay.addWidget(self.more)

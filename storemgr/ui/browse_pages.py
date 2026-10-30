@@ -294,6 +294,15 @@ class BrowsePages:
                 self.show_page("app")
         self.jobs.run(load, done)
 
+    def _app_is_stuck(self, a) -> bool:
+        """This app failed to install/update, or Windows' installer or the Store's queue has it stuck."""
+        if a.family in self.failures:
+            return True
+        h = self.health or {}
+        fam = a.family.lower()
+        return (any(j.family.lower() == fam for j in h.get("stuck", []))
+                or any((i.family or "").lower() == fam for i in h.get("queue_problems", [])))
+
     def open_app(self, app):
         self.detail_app = app
         self.detail_desktop = None
@@ -359,8 +368,13 @@ class BrowsePages:
             b.setEnabled(bool(d.installer) and (not p or p.is_free))
             b.clicked.connect(lambda: self.get_desktop(d, p))
         btns.addWidget(b)
-        if a:
-            unj = button("Unjam", icon="unjam", tip="Cancel the Store's stuck job for this app, clear stuck installer jobs, then update")
+        if p and not p.is_free:       # can't buy here: send people to the Store's own page instead of a dead button
+            ms = button("Open in Microsoft Store", tip="Paid apps need a licence from your Microsoft account")
+            ms.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(f"https://apps.microsoft.com/detail/{p.product_id}")))
+            btns.addWidget(ms)
+        if a and self._app_is_stuck(a):
+            unj = button("Fix stuck install", icon="unjam", tip="Cancels the Store's stuck job for this app, clears stuck "
+                         "installer jobs, then updates it")
             unj.clicked.connect(lambda: self.jobs.unjam(a))
             btns.addWidget(unj)
         pid = p.product_id if p else (d.product_id if d else "")

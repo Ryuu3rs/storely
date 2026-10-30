@@ -65,8 +65,21 @@ G = {"home": "", "updates": "", "library": "", "health": "", "settin
 IMG_DIR = CACHE_DIR / "img"
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 
+def _check_image(colour: str) -> str:
+    f = IMG_DIR / f"check-{colour.lstrip('#')}.svg"
+    if not f.exists():
+        f.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 8.2l3 3 6-6.4" '
+                     f'fill="none" stroke="{colour}" stroke-width="1.8" stroke-linecap="round" '
+                     'stroke-linejoin="round"/></svg>', encoding="utf-8")
+    return f.as_posix()
+
+
 def _style() -> str:
-    c = PALETTES[THEME]
+    c = dict(PALETTES[THEME])
+    try:
+        c["CHECK_IMG"] = _check_image(c["ACCENT_TEXT"])
+    except OSError:
+        c["CHECK_IMG"] = ""
     return """
 * { font-family: 'Segoe UI Variable Text', 'Segoe UI'; font-size: 10pt; color: %(TEXT)s; }
 QMainWindow, #Root { background: %(BG)s; }
@@ -106,8 +119,15 @@ QMenu { background: %(MENU)s; border: 1px solid %(MENU_BORDER)s; border-radius: 
 QMenu::item { padding: 6px 28px 6px 12px; border-radius: 4px; }
 QMenu::item:selected { background: %(MENU_SEL)s; }
 QMenu::separator { height: 1px; background: %(MENU_BORDER)s; margin: 4px 8px; }
-QCheckBox::indicator { width: 18px; height: 18px; }
+QCheckBox { spacing: 8px; }
+QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid %(INPUT_LINE)s; border-radius: 4px; background: %(INPUT)s; }
+QCheckBox::indicator:hover { border-color: %(ACCENT)s; }
+QCheckBox::indicator:checked { background: %(ACCENT)s; border-color: %(ACCENT)s; image: url("%(CHECK_IMG)s"); }
+QCheckBox::indicator:disabled { border-color: %(BTN_DIS_TEXT)s; background: %(BTN_DIS_BG)s; }
+QCheckBox:focus { color: %(ACCENT)s; }
+QPushButton:focus, QComboBox:focus, QToolButton#Nav:focus { border: 1px solid %(ACCENT)s; }
 QComboBox { background: %(CARD)s; border: 1px solid %(BORDER)s; border-radius: 5px; padding: 5px 10px; }
+QComboBox:focus { border: 1px solid %(ACCENT)s; }
 QToolTip { background: %(MENU)s; color: %(TEXT)s; border: 1px solid %(MENU_BORDER)s; padding: 4px; }
 QMessageBox { background: %(SURFACE)s; }
 """ % c
