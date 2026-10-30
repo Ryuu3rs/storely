@@ -1,6 +1,9 @@
 # Changelog
 
-## [1.3.0] - 2026-10-30
+## [1.3.1] - 2026-10-30
+
+1.3.0 was never published: its build was missing one compiled part and didn't start. 1.3.1 is the same
+release, fixed, and every build now checks that the finished app actually loads before it is packaged.
 
 ### New
 

@@ -19,7 +19,8 @@ def version_info(description, name):
                                VarFileInfo([VarStruct("Translation", [1033, 1200])])])
 
 
-common = dict(pathex=["."], datas=[("assets", "assets")], excludes=["tkinter", "PIL", "pytest", "PyInstaller"])
+# PyNaCl's compiled part loads _cffi_backend from C, which PyInstaller's import scan can't see
+common = dict(pathex=["."], datas=[("assets", "assets")], hiddenimports=["_cffi_backend"], excludes=["tkinter", "PIL", "pytest", "PyInstaller"])
 gui = Analysis(["main.py"], **common)
 cli = Analysis(["cli.py"], **common)
 

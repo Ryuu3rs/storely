@@ -33,6 +33,10 @@ if ($LASTEXITCODE) { throw 'PyInstaller failed' }
 $cli = 'dist\Storely\storely-cli.exe'
 $v = & $cli --version
 if ($LASTEXITCODE -or -not $v) { throw "smoke test failed: $cli --version" }
+$report = Join-Path $env:TEMP "storely-import-check.txt"
+Remove-Item $report -ErrorAction SilentlyContinue
+$p = Start-Process 'dist\Storely\Storely.exe' -ArgumentList '--import-check', "`"$report`"" -Wait -PassThru
+if ($p.ExitCode) { throw "smoke test failed: Storely.exe --import-check`n$(Get-Content $report -Raw -ErrorAction SilentlyContinue)" }
 Write-Host "built $v ($arch)"
 if (Get-ChildItem dist\Storely -Recurse -Include *.ps1, *.py | Select-Object -First 1) { throw 'loose scripts in the build' }
 
