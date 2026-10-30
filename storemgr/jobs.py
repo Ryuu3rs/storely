@@ -63,8 +63,15 @@ class Jobs(QObject):
 
     def _done(self, token, result, error):
         cb = self._cb.pop(token, None)
-        if cb:
+        if not cb:
+            return
+        try:
             cb(result, error)
+        except RuntimeError as e:
+            # the page that asked was closed or re-drawn while the work ran: its widgets are gone, nothing to show
+            if "already deleted" not in str(e):
+                raise
+            log.info("result for a page that was closed meanwhile: %s", e)
 
     # ------------------------------------------------------------------ per-app jobs
     def busy(self, family: str) -> bool:

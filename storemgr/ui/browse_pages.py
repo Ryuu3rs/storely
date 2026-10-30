@@ -174,7 +174,7 @@ class BrowsePages:
         cat = getattr(self, "category", CATEGORIES[0])
         lay.addWidget(label(cat, "H1"))
         lay.addWidget(self._category_chips())
-        for key in ("top_free_apps", "top_paid_apps", "trending_apps"):
+        for key in ("top_free_apps", "trending_apps"):
             sh = Shelf(self, f"{CHARTS[key][2]}", lambda k=key: self.open_chart(k, cat))
             lay.addWidget(sh)
             self.jobs.run(lambda k=key: self.browse.chart(k, cat, size=20)[1],

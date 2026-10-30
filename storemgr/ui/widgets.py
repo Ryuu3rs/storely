@@ -382,13 +382,14 @@ class QueueRow(QFrame):
 
     def _btn(self, icon, tip, fn):
         b = button("", flat=True, icon=icon, tip=tip)
+        b.setAccessibleName(tip)
         b.setFixedWidth(34)
         b.clicked.connect(fn)
         self.btns.addWidget(b)
 
     def refresh(self):
         it, q = self.item, self.win.queue
-        kind = {"desktop": "Desktop installer", "winget": "Other app (winget)", "framework": "Windows runtime"}.get(
+        kind = {"desktop": "Desktop installer", "winget": "Other program", "framework": "Windows runtime"}.get(
             it.kind, "Store package") + (f"  ·  version {it.version}" if it.kind == "store" and it.version else "")
         state = {"queued": "Queued", "downloading": "Downloading", "paused": "Paused", "waiting": "Waiting for installer",
                  "installing": "Installing", "done": "Done", "failed": "Failed", "cancelled": "Cancelled",
@@ -402,6 +403,11 @@ class QueueRow(QFrame):
             self.bar.setValue(int(1000 * it.done / max(it.total, 1)))
         else:
             self.bar.setRange(0, 0)
+        # progress ticks arrive ~4 times a second: rebuild the buttons only when what they offer changes, or a click
+        # lands on a button that was just replaced and is lost
+        if getattr(self, "_btn_state", None) == it.state:
+            return
+        self._btn_state = it.state
         clear(self.btns)
         if it.state == "approve":
             ok = button("Allow and install", accent=True)
@@ -413,9 +419,9 @@ class QueueRow(QFrame):
             self.btns.addWidget(no)
             return
         if it.state in ("queued", "paused"):
-            self._btn("back", "Move up", lambda: q.move(it.id, -1))
-            self._btn("download", "Move to top", lambda: q.to_top(it.id))
-        if it.state == "downloading":
+            self._btn("up", "Move up", lambda: q.move(it.id, -1))
+            self._btn("top", "Move to the top", lambda: q.to_top(it.id))
+        if it.state == "downloading" and it.kind != "winget":      # winget can't resume a half download
             self._btn("", "Pause (keeps what's downloaded)", lambda: q.pause(it.id))
         if it.state in ("paused", "failed", "cancelled"):
             self._btn("", "Resume / retry", lambda: q.resume(it.id))

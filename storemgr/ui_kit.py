@@ -60,7 +60,7 @@ G = {"home": "", "updates": "", "library": "", "health": "", "settin
      "search": "", "more": "", "refresh": "", "close": "", "repair": "",
      "delete": "", "open": "", "star": "", "check": "", "warning": "",
      "unjam": "", "back": "", "download": "", "shield": "", "history": "",
-     "app": "", "rollback": ""}
+     "app": "", "rollback": "", "up": "", "top": ""}
 
 IMG_DIR = CACHE_DIR / "img"
 IMG_DIR.mkdir(parents=True, exist_ok=True)
