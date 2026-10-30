@@ -204,6 +204,7 @@ def download(rel: Release, progress=None, cancel: threading.Event | None = None)
     _clear_others(name)
     dest, part = UPDATE_DIR / name, UPDATE_DIR / (name + ".part")
     if dest.is_file() and file_digest(dest, "sha256") == digest:
+        _VERIFIED[name] = digest
         return dest
     dest.unlink(missing_ok=True)
     h, got = hashlib.sha256(), 0
@@ -237,6 +238,7 @@ def download(rel: Release, progress=None, cancel: threading.Event | None = None)
         raise
     if progress:
         progress(got, got, 0)
+    _VERIFIED[name] = digest
     return dest
 
 
@@ -257,15 +259,47 @@ def _shell_open(file: str, params: str, cwd: str) -> int:
     return 0 if shell32.ShellExecuteExW(ctypes.byref(sei)) else (ctypes.get_last_error() or 1)
 
 
+_VERIFIED: dict[str, str] = {}      # installer file name -> sha256 it was verified against (this session)
+
+
+def _locked_digest(p: Path):
+    """Open `p` so nobody else can write, rename or delete it while we hold it, and hash it through that handle.
+    Returns (handle, sha256); the caller closes the handle once the installer has started."""
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateFileW.restype = wintypes.HANDLE
+    k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+                                wintypes.DWORD, wintypes.HANDLE]
+    h = k32.CreateFileW(str(p), 0x80000000, 0x1, None, 3, 0x80, None)    # GENERIC_READ, FILE_SHARE_READ only
+    if h in (None, wintypes.HANDLE(-1).value):
+        raise RuntimeError(f"couldn't open the update ({ctypes.get_last_error()}) - is something else using it?")
+    import msvcrt
+    fd = msvcrt.open_osfhandle(h, os.O_RDONLY)
+    dup = os.dup(fd)            # keep the lock alive while the file object below is closed after hashing
+    with os.fdopen(fd, "rb") as f:
+        sha = hashlib.sha256()
+        for block in iter(lambda: f.read(CHUNK), b""):
+            sha.update(block)
+    return dup, sha.hexdigest()
+
+
 def install(path: Path) -> None:
     """Start a downloaded installer silently (it shows its own admin prompt and closes Storely); the caller should
-    quit right after."""
+    quit right after. Re-checks the hash at launch through a handle that stops anyone swapping the file meanwhile."""
     root = UPDATE_DIR.resolve()
     p = Path(path).resolve()
     if (p.parent != root or not INSTALLER_RE.fullmatch(p.name) or not p.is_file() or secure.is_reparse(path)
             or secure.is_reparse(UPDATE_DIR)):
         raise RuntimeError(f"not a downloaded Storely update: {path}")
-    err = _shell_open(str(p), INSTALLER_ARGS, str(root))
+    expected = _VERIFIED.get(p.name)
+    if not expected:
+        raise RuntimeError("that update wasn't verified in this session - download it again")
+    fd, got = _locked_digest(p)
+    try:
+        if got != expected:
+            raise RuntimeError("the update changed after it was checked - not installing it")
+        err = _shell_open(str(p), INSTALLER_ARGS, str(root))
+    finally:
+        os.close(fd)
     if err:
         raise RuntimeError("the update was cancelled at the admin prompt" if err == 1223
                            else f"couldn't start the update installer (error {err})")

@@ -17,6 +17,7 @@ def window(qapp):
     w = A.Main()
     w.setAttribute(Qt.WA_DontShowOnScreen)
     yield w
+    w.jobs.pool.waitForDone(20000)     # background work started by the window finishes before it goes away
     w.queue.timer.stop()
     w.watchdog.stop()
 

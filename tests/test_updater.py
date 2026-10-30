@@ -278,6 +278,7 @@ def test_unexpected_installer_name_is_refused(net, key, upd_dir):
 # install()
 
 def test_install_runs_only_our_downloads(upd_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(updater, "_VERIFIED", {})
     ran = []
     monkeypatch.setattr(updater, "_shell_open", lambda f, p, c: ran.append((f, p, c)) or 0)
     upd_dir.mkdir()
@@ -290,13 +291,48 @@ def test_install_runs_only_our_downloads(upd_dir, tmp_path, monkeypatch):
         with pytest.raises(RuntimeError, match="not a downloaded"):
             updater.install(bad)
     assert ran == []
+    with pytest.raises(RuntimeError, match="wasn't verified"):      # right name and place, but never verified
+        updater.install(good)
+    monkeypatch.setitem(updater._VERIFIED, X64, hashlib.sha256(PAYLOAD).hexdigest())
     updater.install(good)
     assert ran == [(str(good.resolve()), "/SP- /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS", str(upd_dir.resolve()))]
+
+
+def test_install_refuses_a_file_changed_after_verification(upd_dir, monkeypatch):
+    ran = []
+    monkeypatch.setattr(updater, "_shell_open", lambda f, p, c: ran.append(f) or 0)
+    upd_dir.mkdir()
+    (upd_dir / X64).write_bytes(b"swapped by malware")
+    monkeypatch.setitem(updater._VERIFIED, X64, hashlib.sha256(PAYLOAD).hexdigest())
+    with pytest.raises(RuntimeError, match="changed after it was checked"):
+        updater.install(upd_dir / X64)
+    assert ran == []
+
+
+def test_installer_is_locked_while_launching(upd_dir, monkeypatch):
+    upd_dir.mkdir()
+    f = upd_dir / X64
+    f.write_bytes(PAYLOAD)
+    monkeypatch.setitem(updater._VERIFIED, X64, hashlib.sha256(PAYLOAD).hexdigest())
+    seen = []
+
+    def launch(file, params, cwd):
+        for attempt in (lambda: f.write_bytes(b"evil"), lambda: f.unlink()):
+            try:
+                attempt()
+                seen.append("changed")
+            except PermissionError:
+                seen.append("blocked")
+        return 0
+    monkeypatch.setattr(updater, "_shell_open", launch)
+    updater.install(f)
+    assert seen == ["blocked", "blocked"] and f.read_bytes() == PAYLOAD
 
 
 def test_install_reports_cancelled_uac(upd_dir, monkeypatch):
     monkeypatch.setattr(updater, "_shell_open", lambda f, p, c: 1223)
     upd_dir.mkdir()
     (upd_dir / X64).write_bytes(PAYLOAD)
+    monkeypatch.setitem(updater._VERIFIED, X64, hashlib.sha256(PAYLOAD).hexdigest())
     with pytest.raises(RuntimeError, match="cancelled"):
         updater.install(upd_dir / X64)
