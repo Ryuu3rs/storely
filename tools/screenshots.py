@@ -41,7 +41,11 @@ def main():
     qa = QApplication([])
     K.apply_theme(a.theme)
     qa.setStyleSheet(K.STYLE)
-    w = A.Main()
+    try:
+        w = A.Main()
+    except Exception:
+        print("the window failed to start:\n" + traceback.format_exc())
+        return 1
     w.settings["display_name"] = ""
     w.setAttribute(Qt.WA_DontShowOnScreen)
     w.resize(*map(int, a.size.split("x")))

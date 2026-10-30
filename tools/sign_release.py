@@ -17,6 +17,7 @@ from nacl.signing import VerifyKey
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_key import app_public_key, load_private_key, public_b64
 
+REPO = "Ryuu3rs/storely"
 NAME_RE = re.compile(r"Storely-Setup-\d+\.\d+\.\d+\.0-(x64|arm64)\.exe")     # same as updater.INSTALLER_RE
 
 
@@ -36,6 +37,15 @@ def publish(tag: str) -> None:
         sys.exit("usage: sign_release.py --publish vX.Y.Z")
     with tempfile.TemporaryDirectory() as tmp:
         subprocess.run(["gh", "release", "download", tag, "--pattern", "Storely-Setup-*.exe", "--dir", tmp], check=True)
+        # only sign what this repo's release workflow built: a tampered draft (or a build from anywhere else) has no
+        # matching provenance attestation, and every installed copy would otherwise trust it once signed
+        for exe in sorted(Path(tmp).glob("Storely-Setup-*.exe")):
+            r = subprocess.run(["gh", "attestation", "verify", str(exe), "--repo", REPO,
+                                "--signer-workflow", f"{REPO}/.github/workflows/release.yml"], capture_output=True, text=True)
+            if r.returncode != 0:
+                sys.exit(f"{exe.name}: no valid build attestation from {REPO}'s release workflow - NOT signing.\n"
+                         f"{(r.stderr or r.stdout).strip()[-600:]}")
+            print(f"attestation OK: {exe.name}")
         sign(Path(tmp))
         subprocess.run(["gh", "release", "upload", tag, str(Path(tmp) / "SHA256SUMS"), str(Path(tmp) / "SHA256SUMS.sig"),
                         "--clobber"], check=True)

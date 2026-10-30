@@ -68,23 +68,23 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         self.last_check = 0.0
         self.history_stack = []
         self.current = None
+        self.framework_ups = []     # all of these before _build(): it renders Home, which reads them
+        self.winget_ups = []
+        self.winget_state = ""
+        self.self_update = None
+        self._pending_update_all = False
 
         self.jobs.progress.connect(lambda fam, *a: self._refresh_family(fam))
         self.jobs.app_finished.connect(self.on_job_finished)
         self.jobs.changed.connect(self.refresh_badges)
         self.queue.changed.connect(self.on_queue_changed)
         self.queue.finished.connect(self.on_queue_finished)
+        self.queue.approval.connect(self.on_queue_approval)
         self._build()
         self._tray()
         self.watchdog = QTimer(self)
         self.watchdog.timeout.connect(self.check_health)
         self.watchdog.start(5 * 60 * 1000)
-        self.queue.approval.connect(self.on_queue_approval)
-        self.framework_ups = []
-        self.winget_ups = []
-        self.winget_state = ""
-        self.self_update = None
-        self._pending_update_all = False
         QTimer.singleShot(50, self.rescan)
         self.jobs.run(background.refresh, lambda msg, e: msg and self.statusBar().showMessage(msg, 8000))
         QTimer.singleShot(20000, self.check_self_update)

@@ -1,14 +1,8 @@
 """UI plumbing that must not turn a closed page into an error dialog."""
 
 import pytest
-from PySide6.QtCore import QCoreApplication
 
 from storemgr.jobs import Jobs
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    return QCoreApplication.instance() or QCoreApplication([])
 
 
 def test_result_for_a_closed_page_is_ignored(qapp):
