@@ -1,5 +1,5 @@
 pyinstaller>=6.16
 pytest>=8
-ruff>=0.6
+ruff>=0.17.3
 pip-audit>=2.7
 pillow>=11
