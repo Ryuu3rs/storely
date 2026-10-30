@@ -9,4 +9,4 @@ winrt-Windows.Foundation>=3.0
 winrt-Windows.Foundation.Collections>=3.0
 winrt-Windows.Networking.Connectivity>=3.0
 winrt-Windows.UI.Notifications>=3.0
-winrt-Windows.Data.Xml.Dom>=3.0
+winrt-Windows.Data.Xml.Dom>=4!10.0.28000.2705
