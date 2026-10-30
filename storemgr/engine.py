@@ -116,7 +116,7 @@ class App:
 
 
 class Engine:
-    def __init__(self, market: str = "GB", keep_rollback: bool = False, holds: dict | None = None):
+    def __init__(self, market: str = "US", keep_rollback: bool = False, holds: dict | None = None):
         self.catalog = Catalog(market)
         self.keep_rollback = keep_rollback
         self.holds = holds if holds is not None else {}    # family -> "all" | version to skip

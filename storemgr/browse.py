@@ -77,7 +77,10 @@ def _card(c: dict) -> Card:
 
 
 class Browse:
-    def __init__(self, market: str = "GB", locale: str = "en-GB"):
+    def __init__(self, market: str = "US", locale: str | None = None):
+        if not locale:
+            from .winsys import windows_region
+            locale = windows_region()[1]
         self.market, self.locale = market, locale
 
     def _get(self, path: str, ttl: float = TTL):

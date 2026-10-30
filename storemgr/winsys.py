@@ -65,6 +65,27 @@ def need_space(where, needed: int, what: str) -> None:
         raise RuntimeError(f"Not enough space on {drive} for {what}: needs about {gb(needed)}, {gb(free)} free")
 
 
+def windows_region() -> tuple[str, str]:
+    """(Store market, language) from Windows' own region settings, e.g. ("US", "en-US"); ("US", "en-US") if unknown."""
+    k32 = ctypes.WinDLL("kernel32")
+    geo, loc = ctypes.create_unicode_buffer(16), ctypes.create_unicode_buffer(85)
+    market = geo.value.upper() if k32.GetUserDefaultGeoName(geo, 16) and len(geo.value) == 2 else "US"
+    language = loc.value if k32.GetUserDefaultLocaleName(loc, 85) and loc.value else "en-US"
+    return market, language
+
+
+MARKETS = {"US": "United States", "GB": "United Kingdom", "IE": "Ireland", "CA": "Canada", "AU": "Australia",
+           "NZ": "New Zealand", "IN": "India", "ZA": "South Africa", "DE": "Germany", "AT": "Austria",
+           "CH": "Switzerland", "FR": "France", "BE": "Belgium", "NL": "Netherlands", "LU": "Luxembourg",
+           "ES": "Spain", "PT": "Portugal", "IT": "Italy", "SE": "Sweden", "NO": "Norway", "DK": "Denmark",
+           "FI": "Finland", "PL": "Poland", "CZ": "Czechia", "SK": "Slovakia", "HU": "Hungary", "RO": "Romania",
+           "GR": "Greece", "TR": "Turkey", "IL": "Israel", "AE": "United Arab Emirates", "SA": "Saudi Arabia",
+           "EG": "Egypt", "BR": "Brazil", "MX": "Mexico", "AR": "Argentina", "CL": "Chile", "CO": "Colombia",
+           "PE": "Peru", "JP": "Japan", "KR": "South Korea", "TW": "Taiwan", "HK": "Hong Kong", "SG": "Singapore",
+           "MY": "Malaysia", "PH": "Philippines", "TH": "Thailand", "ID": "Indonesia", "VN": "Vietnam",
+           "UA": "Ukraine", "NG": "Nigeria", "KE": "Kenya"}
+
+
 STORE_LINK_PROGID = "Storely.StoreLink"   # registered by the installer
 
 

@@ -48,7 +48,7 @@ def install_crash_handlers(gui: bool = False) -> None:
     threading.excepthook = lambda a: report(a.exc_type, a.exc_value, a.exc_traceback, a.thread.name if a.thread else "thread")
 
 
-def selftest(market: str = "GB") -> list[dict]:
+def selftest(market: str = "US") -> list[dict]:
     """Can we reach each Microsoft service Storely depends on? (They're undocumented and can change.)"""
     from . import fe3
     from .browse import Browse

@@ -111,10 +111,15 @@ def _parse(p: dict) -> Product:
     )
 
 
+def _windows_language() -> str:
+    from .winsys import windows_region
+    return windows_region()[1]
+
+
 class Catalog:
-    def __init__(self, market: str = "GB", language: str = "en-GB"):
+    def __init__(self, market: str = "US", language: str | None = None):
         self.market = market
-        self.language = language
+        self.language = language or _windows_language()
         self._lock = threading.Lock()
         self._cache: dict[str, dict] = {}
         try:

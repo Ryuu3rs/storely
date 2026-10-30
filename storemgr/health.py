@@ -103,8 +103,14 @@ def services() -> dict[str, str]:
     return out
 
 
+def queue_problems(q: list) -> list:
+    """Store queue items that are actually in trouble (an error), not ones simply waiting or downloading."""
+    return [i for i in q if (i.error or "").strip() or (i.state or "").lower() in ("error", "failed")]
+
+
 def status() -> dict:
     stuck = installer_jobs()
-    q = storequeue.items()
-    return {"services": services(), "stuck": stuck, "store_queue": q,
-            "healthy": not stuck and not [i for i in q if i.state not in ("Completed", "Cancelled")]}
+    q = [i for i in storequeue.items() if i.state not in ("Completed", "Cancelled")]
+    problems = queue_problems(q)
+    return {"services": services(), "stuck": stuck, "store_queue": q, "queue_problems": problems,
+            "healthy": not stuck and not problems}

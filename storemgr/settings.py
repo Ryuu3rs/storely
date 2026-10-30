@@ -8,7 +8,7 @@ from . import DATA_DIR
 
 FILE = DATA_DIR / "settings.json"
 DEFAULTS = {
-    "close_apps": False, "keep_rollback": False, "check_on_start": True, "watchdog": True, "market": "GB",
+    "close_apps": False, "keep_rollback": False, "check_on_start": True, "watchdog": True, "market": "",     # "" = from Windows' region
     "auto_update": [],              # families updated in the background ("ticked")
     "background_mode": "ticked",    # "ticked" | "all"
     "background_desktop": True,     # also update desktop-installer apps installed via Storely
@@ -35,6 +35,9 @@ def load() -> dict:
         s.update(json.loads(FILE.read_text(encoding="utf-8")))
     except (OSError, ValueError):
         pass
+    if not s.get("market"):
+        from .winsys import windows_region
+        s["market"] = windows_region()[0]
     return s
 
 

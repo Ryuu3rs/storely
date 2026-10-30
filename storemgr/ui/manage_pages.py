@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -15,8 +16,8 @@ import sys
 
 import PySide6
 
-from ..winsys import store_links_ours
-from .. import DATA_DIR, FROZEN, ROOT, __version__, admin, background, cleanup, debloat, diag, settings as settings_mod, storequeue, volumes, wpm
+from ..winsys import MARKETS, store_links_ours
+from .. import DATA_DIR, FROZEN, ROOT, __version__, admin, background, cleanup, debloat, diag, settings as settings_mod, storequeue, volumes, winapps, wpm
 from .. import ui_kit as K
 from ..browse import Card
 from .widgets import AppIcon, Grid, QueueRow, StoreTile, button, clear, fmt_size, label
@@ -116,20 +117,30 @@ class ManagePages:
         if held:
             lay.addWidget(label(f"Held back ({len(held)})", "H2"))
             self._rows_for(lay, held)
-        q = [i for i in storequeue.items() if i.state not in ("Completed", "Cancelled")]
+        q = (self.health or {}).get("queue_problems", [])     # fetched in the background by the health check
         if q:
-            lay.addWidget(label("Stuck in the Microsoft Store's own queue", "H2"))
+            lay.addWidget(label("Failed in the Microsoft Store's own queue", "H2"))
             for i in q:
                 row = QFrame()
                 row.setObjectName("Card")
                 rl = QHBoxLayout(row)
-                rl.addWidget(label(f"{i.family.split('_')[0]}  ·  {i.state}  {i.percent:.0f}%  {i.error}"))
-                rl.addStretch()
+                err = f"  ·  {winapps.explain(i.error)}" if (i.error or "").strip() else ""
+                rl.addWidget(label(f"{self._app_name(i.family)}  ·  {i.state}{err}", wrap=True), 1)
                 b = button("Cancel it")
-                b.clicked.connect(lambda _, f=i.family: (storequeue.cancel(f), self.render_updates()))
+                b.clicked.connect(lambda _, f=i.family: self.jobs.run(lambda: storequeue.cancel(f),
+                                                                      lambda r, e: self.check_health()))
                 rl.addWidget(b)
                 lay.addWidget(row)
         lay.addStretch()
+
+    def _app_name(self, family: str) -> str:
+        """'WhatsApp' rather than '5319275A.WhatsAppDesktop_cv1g1gvanyjgm'."""
+        a = self.engine.apps.get(family) or next((x for x in self.engine.apps.values()
+                                                  if x.family.lower() == (family or "").lower()), None)
+        if a:
+            return a.title
+        name = (family or "").split("_")[0].split(".")[-1]
+        return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name) or family
 
     def _update_others(self, others):
         if QMessageBox.question(self, "Storely", f"Update {len(others)} other programs?\n\nSome of their installers will "
@@ -390,38 +401,66 @@ class ManagePages:
             card.setObjectName("Card")
             cl = QHBoxLayout(card)
             cl.setContentsMargins(22, 18, 22, 18)
-            ok = not h["stuck"]
+            stuck, problems = h["stuck"], h.get("queue_problems", [])
+            ok = h.get("healthy", not stuck)
             ic = label()
             ic.setPixmap(K.glyph_icon("check" if ok else "warning", K.GOOD if ok else K.BAD, 40).pixmap(40, 40))
             cl.addWidget(ic)
             txt = QVBoxLayout()
-            txt.addWidget(label("Windows' app installer is working" if ok else
-                                f"Windows' app installer is jammed - {len(h['stuck'])} stuck job(s)", "H2"))
-            txt.addWidget(label("No job has been stuck for more than 10 minutes." if ok else
-                                "These jobs started and never finished. Everything else queues behind them, and Windows "
-                                "reloads them at every boot - so restarting does not fix it. Unjam clears them.", "Muted", wrap=True))
+            if ok:
+                title, why = "Windows' app installer is working", "Nothing is stuck, and the Store's own queue has no errors."
+            elif stuck:
+                title = f"Downloads are stuck - {len(stuck)} install{'s' if len(stuck) != 1 else ''} never finished"
+                why = ("Everything else waits behind them, and Windows reloads them every time it starts - so "
+                       "restarting doesn't help. Fixing it clears them properly.")
+            else:
+                title = f"{len(problems)} item{'s' if len(problems) != 1 else ''} in the Store's queue failed"
+                why = "They can block other downloads. Fixing it cancels them and resets Windows' installer."
+            txt.addWidget(label(title, "H2"))
+            txt.addWidget(label(why, "Muted", wrap=True))
             cl.addLayout(txt, 1)
-            ub = button("Unjam everything", accent=not ok, icon="unjam", tip="One admin prompt: cancels the Store queue, "
-                        "ends hung install services, clears saved stuck jobs (as SYSTEM), restarts the services")
+            ub = button("Fix stuck downloads", accent=not ok, icon="shield",
+                        tip="Needs one admin prompt. Cancels the Store's stuck items, ends hung install services, "
+                            "clears saved stuck jobs and restarts the services.")
+            ub.setAccessibleName("Fix stuck downloads (needs admin)")
             ub.clicked.connect(lambda: self.jobs.unjam(None))
             cl.addWidget(ub)
             lay.addWidget(card)
-            for j in h["stuck"]:
-                lay.addWidget(label(f"  {j.operation:10}  {j.package}   -  stuck {j.minutes:.0f} min (since {j.started:%d %b %H:%M})", "Muted"))
+            for j in stuck:
+                lay.addWidget(label(f"  {self._app_name(j.family)}  -  {j.operation}, stuck for {j.minutes:.0f} min "
+                                    f"(since {j.started:%d %b %H:%M})", "Muted"))
             q = h["store_queue"]
-            lay.addWidget(label("Microsoft Store queue", "H2"))
+            qh = QHBoxLayout()
+            qh.addWidget(label("Microsoft Store queue", "H2"))
+            qh.addStretch()
+            if len(q) > 1:
+                ca = button(f"Cancel all {len(q)}", tip="Storely updates these apps itself - the Store's copies only "
+                                                         "compete with it")
+                ca.clicked.connect(lambda: self.jobs.run(lambda: [storequeue.cancel(i.family) for i in q],
+                                                         lambda r, e: self.check_health()))
+                qh.addWidget(ca)
+            lay.addLayout(qh)
             if q:
                 for i in q:
                     row = QHBoxLayout()
-                    row.addWidget(label(f"  {i.family.split('_')[0]}  ·  {i.state}  {i.percent:.0f}%  {i.error}", "Muted"))
-                    row.addStretch()
+                    err = f"  -  {winapps.explain(i.error)}" if (i.error or "").strip() else ""
+                    row.addWidget(label(f"  {self._app_name(i.family)}  ·  {i.state} {i.percent:.0f}%{err}", "Muted",
+                                        wrap=True), 1)
                     b = button("Cancel")
-                    b.clicked.connect(lambda _, f=i.family: (storequeue.cancel(f), self.check_health()))
+                    b.clicked.connect(lambda _, f=i.family: self.jobs.run(lambda: storequeue.cancel(f), lambda r, e: self.check_health()))
                     row.addWidget(b)
                     lay.addLayout(row)
             else:
                 lay.addWidget(label("  Empty - nothing waiting in the Store.", "Muted"))
-            lay.addWidget(label("  Services: " + "    ".join(f"{k}: {v}" for k, v in h["services"].items()), "Muted"))
+            tech = QCheckBox("Show technical details")
+            tech.setChecked(getattr(self, "health_tech", False))
+            tech.toggled.connect(lambda v: (setattr(self, "health_tech", v), self.render_health()))
+            lay.addWidget(tech)
+            if getattr(self, "health_tech", False):
+                lay.addWidget(label("  Windows services (\"Stopped\" is normal for some of these - they start when needed): "
+                                    + "    ".join(f"{k}: {v}" for k, v in h["services"].items()), "Muted", wrap=True))
+                for j in stuck:
+                    lay.addWidget(label(f"  {j.package}", "Muted"))
         self._toggle(lay, "auto_unjam", "Fix jams automatically",
                      "When a jam is seen, cancel the Store's stuck items straight away (no prompt). If it's still stuck, "
                      "you get a notification with a one-click Unjam.")
@@ -657,7 +696,7 @@ class ManagePages:
             r2.addStretch()
             bg.addLayout(r2)
             bg.addWidget(label("      Runs as you (no admin). Apps that are open are skipped. Updates that need admin "
-                               "(e.g. Codex's service) wait for you to open Storely.", "Muted", wrap=True))
+                               "(apps that install a Windows service) wait for you to open Storely.", "Muted", wrap=True))
         self.jobs.run(background.status, got)
         self._toggle(lay, "background_desktop", "Also update desktop apps installed from the Store",
                      "Discord, Teams and the like - using the Store's own installer recipe (SHA-256 checked).")
@@ -666,7 +705,7 @@ class ManagePages:
         self._toggle(lay, "check_on_start", "Check for updates when Storely opens", "Asks Microsoft for new versions of every app (~10 s).")
         self._toggle(lay, "close_apps", "Close apps automatically to update them", "Otherwise you're asked when an app is open.")
         self._toggle(lay, "keep_rollback", "Keep the previous version so I can roll back",
-                     "Saves each installed package (uses disk space - Codex is ~900 MB).",
+                     "Saves each installed package (uses disk space - big apps can be several hundred MB each).",
                      lambda: setattr(self.engine, "keep_rollback", s["keep_rollback"]))
         self._toggle(lay, "pause_on_metered", "Wait for an unmetered connection",
                      "Downloads pause on metered or capped connections (phone hotspot) and carry on later.")
@@ -751,10 +790,15 @@ class ManagePages:
 
         lay.addWidget(label("Region", "H2"))
         mk = QComboBox()
-        mk.addItems(["GB", "US", "IE", "AU", "CA", "DE", "FR"])
-        mk.setCurrentText(s["market"])
-        mk.currentTextChanged.connect(lambda v: self._set("market", v))
-        mk.setFixedWidth(120)
+        codes = sorted(MARKETS, key=lambda c: MARKETS[c])
+        if s["market"] not in MARKETS:
+            codes.insert(0, s["market"])
+        mk.addItems([f"{MARKETS.get(c, c)} ({c})" for c in codes])
+        mk.setCurrentIndex(codes.index(s["market"]))
+        mk.setToolTip("Prices, charts and which apps you can get. Normally the same as Windows' region. "
+                      "Takes effect the next time Storely opens.")
+        mk.currentIndexChanged.connect(lambda i: self._set("market", codes[i]))
+        mk.setFixedWidth(260)
         lay.addWidget(mk)
         if FROZEN:
             lay.addWidget(label("Store links", "H2"))

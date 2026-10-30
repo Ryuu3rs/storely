@@ -345,18 +345,20 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             return
         prev = self.health
         self.health = h
-        if h["stuck"]:
-            self.health_chip.setText(f"  ⚠ Installer jammed ({len(h['stuck'])})  ")
+        if not h.get("healthy", not h["stuck"]):
+            n = len(h["stuck"]) or len(h.get("queue_problems", []))
+            self.health_chip.setText(f"  ⚠ Downloads stuck ({n})  ")
             self.health_chip.setStyleSheet(f"background:{K.BAD_BG}; color:{K.BAD}; border-radius:10px; padding:2px 10px")
             if self.settings.get("auto_unjam") and not getattr(self, "_auto_unjammed", False):
                 self._auto_unjammed = True     # cancel the Store's stuck items once, no prompt, then look again
-                for i in storequeue.items():
-                    if i.state not in ("Completed", "Cancelled"):
+
+                def cancel_store_items():      # the Store's queue service is exactly what hangs when it's jammed:
+                    for i in h["store_queue"]:  # never call it on the window's thread
                         storequeue.cancel(i.family)
-                QTimer.singleShot(20000, self.check_health)
-            elif self.settings["watchdog"] and (not prev or not prev["stuck"]):
-                self.notify(APP_NAME, f"Windows' app installer is jammed ({len(h['stuck'])} stuck job(s)). "
-                            "Open Storely > Health and press Unjam.", warn=True)
+                self.jobs.run(cancel_store_items, lambda r, e: QTimer.singleShot(20000, self.check_health))
+            elif self.settings["watchdog"] and (not prev or prev.get("healthy", True)):
+                self.notify(APP_NAME, "Windows' app installer is stuck, so downloads won't finish. "
+                            "Open Storely > Health and press Fix stuck downloads.", warn=True)
         else:
             self._auto_unjammed = False
             self.health_chip.setText("  ✓ Installer healthy  ")

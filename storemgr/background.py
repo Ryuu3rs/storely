@@ -94,7 +94,7 @@ def run(settings: dict) -> dict:
             out["note"] = f"{why} - skipped"
             _save(out)
             return out
-    e = Engine(settings.get("market", "GB"), settings.get("keep_rollback", False), settings.get("holds", {}))
+    e = Engine(settings["market"], settings.get("keep_rollback", False), settings.get("holds", {}))
     e.allow_admin = False
     e.scan()
     e.check_all()
@@ -123,10 +123,10 @@ def run(settings: dict) -> dict:
             (out["needs_admin"] if "0x80073D28" in msg or "admin" in msg.lower() else out["failed"]).append(
                 f"{a.title}: {winapps.explain(msg)}")
     if mode == "all" or settings.get("background_desktop", True):
-        b = Browse(settings.get("market", "GB"))
+        b = Browse(settings["market"])
         for pid in wpm.tracked():
             try:
-                d = wpm.resolve(b, pid, settings.get("market", "GB"))
+                d = wpm.resolve(b, pid, settings["market"])
                 if not d.update_available:
                     continue
                 if d.installer and (d.installer.scope or "").lower() != "user":
