@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.3.0] - 2026-10-30
+
+### New
+
+- **Install Storely's own update when you close it**: Settings > Storely updates can get a new version ready in the
+  background and install it as Storely closes (Windows asks for admin once). Or pick "Install when I close Storely"
+  for one release.
+- **Install from folder** now copies the offline package somewhere private first, checks it there and shows you what
+  it is before installing: version, permissions, and a clear warning (with an opt-in) if it would replace a newer
+  version.
+- **Home** gives one status and one button: fix stuck downloads, update everything, or check for updates. Other
+  programs (winget) have their own button and a count.
+- **Keyboard**: Ctrl+1 to Ctrl+7 jump between pages; focus is visible on buttons, lists and menus.
+- Store links (ms-windows-store://) open desktop apps from the Store too, and update links that were set up for the
+  old My Store name.
+
+### Fixed
+
+- Some apps (Microsoft News and others) showed an "update" that was really an older version, because the Store
+  numbers the package bundle differently from the app inside it. Storely now compares the app's own version and
+  never installs an older one unless you pick it.
+- Picking a specific version for an app already in Downloads was ignored.
+- The download queue could start before Storely knew which apps you have, and a crash mid-save could damage it.
+- Health could show "healthy" while Store downloads were failing; it now lists failed and stuck items and can cancel
+  them all.
+- Your region and language come from Windows instead of defaulting to the US.
+- Two Storely windows could download the same file at once; now one waits for the other.
+- Choosing an install drive that isn't ready no longer crashes the page.
+- winget results like "restart Windows to finish" and "already up to date" are no longer shown as failures, and
+  cancelling a winget update stops the whole installer.
+- Network problems read as plain words instead of raw connection errors.
+- Light theme: checkboxes are clearly visible, and the update badge on app tiles is readable.
+- "Unjam" is now **Fix stuck install**, and only shows on an app's page when that app is actually stuck. Buttons that
+  need admin carry a shield.
+- Quitting while work is running asks first, and says what will resume next time.
+
+### Security
+
+- The self-update installer is locked and re-checked against its signed hash at the moment it starts, so it can't be
+  swapped after download.
+- The admin helper finds Windows folders from Windows itself (not environment variables), loads only Windows' own
+  PowerShell modules, and only talks to a Storely window running as the same user.
+- Silent updates keep the choices you made at install time; the installer only removes an old My Store if it really
+  is one.
+- Release builds are pinned, attested and verified before they are signed and published.
+
 ## [1.2.1] - 2026-10-09
 
 ### Fixed

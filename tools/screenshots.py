@@ -28,6 +28,19 @@ def settle(qa, seconds):
         time.sleep(0.02)
 
 
+def settle_loaded(qa, w, least, most=45):
+    """Wait at least `least` seconds, then until no background job or picture download has run for a whole second
+    (so a page isn't captured half-drawn), giving up after `most`."""
+    settle(qa, least)
+    end, quiet_since = time.time() + most, None
+    while time.time() < end:
+        busy = w.jobs.pool.activeThreadCount() or w.images.pool.activeThreadCount() or w.scanning or w.checking
+        quiet_since = None if busy else (quiet_since or time.time())
+        if quiet_since and time.time() - quiet_since >= 1:
+            return
+        settle(qa, 0.2)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pages", nargs="*", default=["home", "updates", "library", "downloads", "wishlist", "health", "settings"])
@@ -53,7 +66,7 @@ def main():
     t0 = time.time()
     while (w.scanning or w.checking or not w.engine.apps) and time.time() - t0 < 120:
         settle(qa, 0.5)
-    settle(qa, 15)     # winget list, pictures
+    settle_loaded(qa, w, 3, 60)     # winget list, pictures
     if a.only_winget:
         keep = {i.strip().lower() for i in a.only_winget.split(",")}
         w.winget_ups = [u for u in w.winget_ups if u.id.lower() in keep]
@@ -66,14 +79,12 @@ def main():
             kind, _, arg = p.partition(":")
             if kind == "app":
                 w.open_product(arg)
-                settle(qa, 8)
             elif kind == "search":
                 w.search.setText(arg)
                 w.do_search()
-                settle(qa, 8)
             else:
                 w.show_page(kind)
-            settle(qa, 3)
+            settle_loaded(qa, w, 1.5)
             if out:
                 name = f"{a.theme}-{kind}" + (f"-{arg}" if arg else "")
                 w.grab().save(str(out / f"{''.join(c if c.isalnum() or c in '-_' else '_' for c in name)}.png"))

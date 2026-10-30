@@ -21,14 +21,14 @@ Downloads stuck on **Pending**? Updates that never finish? One frozen app blocki
 app installer jamming - and it reloads the stuck job every time you restart, so rebooting doesn't fix it.
 
 **Storely** gets your apps from the same Microsoft servers the Store uses, but installs them its own way: one at a
-time, with a jam detector and a one-click **Unjam** that clears stuck jobs for good. Then it keeps _everything_ up to
+time, with a jam detector and a one-click **Fix stuck install** that clears stuck jobs for good. Then it keeps _everything_ up to
 date - Store apps and your other programs - from one page.
 
 ## Storely vs the Microsoft Store
 
 |                                                             | **Storely**                                         | Microsoft Store                        |
 | ----------------------------------------------------------- | --------------------------------------------------- | -------------------------------------- |
-| Stuck on "Pending" / updates that never finish              | ✅ One install at a time + **Unjam** that clears it | ❌ Can stay stuck, even after restarts |
+| Stuck on "Pending" / updates that never finish              | ✅ One install at a time + **Fix stuck install** that clears it | ❌ Can stay stuck, even after restarts |
 | Updates your other programs (Chrome, 7-Zip, Steam, Zoom...) | ✅ Same page, through winget                        | ❌                                     |
 | Tells you when an update wants new permissions              | ✅ Waits for your OK (camera, mic, files...)        | ❌ Installs silently                   |
 | Install an **older version** of an app                      | ✅                                                  | ❌                                     |
