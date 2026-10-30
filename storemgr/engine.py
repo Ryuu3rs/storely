@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import threading
 import time
@@ -32,6 +33,25 @@ class Prepared:
     deps: list
     perms: perms.Change | None = None     # permissions the new version adds over the installed one
     older: bool = False                    # the user chose an older version: only then may Windows go backwards
+
+
+@dataclass
+class OfflineItem:
+    """One package from an offline copy, checked and ready for the user to approve."""
+    path: Path                  # private copy (DATA_DIR\offline\...), signature checked there
+    info: winapps.PackageInfo
+    installed: str              # version on this PC now, "" if not installed
+    downgrade: bool
+    same: bool
+    perms: perms.Change
+
+    @property
+    def label(self) -> str:
+        return self.info.display_name or self.info.name
+
+    @property
+    def version(self) -> str:
+        return ".".join(map(str, self.info.version))
 
 
 CHANGELOG_FILE = DATA_DIR / "changelog.json"
@@ -429,32 +449,63 @@ class Engine:
             dest = folder / p.name
             shutil.copyfile(p, dest)
             out.append(dest)
-        (folder / f"{app.title} - how to install.txt").write_text(
+        (folder / ((re.sub(r'[<>:"/\\|?*]', "_", app.title).strip(" .") or "app") + " - how to install.txt")).write_text(
             f"{app.title} {pkg.version_str}, saved by Storely.\n\nInstall the frameworks first, then the app: in "
             "Storely use Library > Install from folder, or double-click each package (needs App Installer).\n\n"
             + "\n".join(p.name for p in out) + "\n", encoding="utf-8")
         return out
 
-    def install_folder(self, folder: Path, report=lambda *a: None) -> list[str]:
-        """Install an offline copy: every package must carry a valid Store or Microsoft signature; frameworks go
-        first."""
+    def review_folder(self, folder: Path) -> list["OfflineItem"]:
+        """Step 1 of installing an offline copy: copy every package somewhere private (a USB stick or a share can
+        change between checking and installing), check each signature THERE, and work out what each would do -
+        new app, update, same version, or a downgrade - and which permissions it adds. Installs nothing."""
         exts = {".appx", ".msix", ".appxbundle", ".msixbundle"}
-        files = sorted(p for p in folder.iterdir() if p.suffix.lower() in exts)
+        files = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in exts)
         if not files:
             raise RuntimeError("no app packages in that folder")
-        for p in files:
-            ok, why = winapps.verify_signature(p, None)
-            if not ok:
-                raise RuntimeError(f"{p.name}: signature check failed ({why}) - nothing was installed")
-        frameworks = [p for p in files if not p.suffix.lower().endswith("bundle") and winapps.is_framework_package(p)]
+        if not self.all_installed:
+            self.all_installed = winapps.installed()
+        stage = DATA_DIR / "offline" / time.strftime("%Y%m%d-%H%M%S")
+        need_space(DATA_DIR, sum(p.stat().st_size for p in files) + 100 * 2**20, "checking the offline copy")
+        stage.mkdir(parents=True, exist_ok=True)
+        items = []
+        try:
+            for src in files:
+                p = stage / src.name
+                shutil.copyfile(src, p)
+                info = winapps.package_info(p)
+                if info is None:
+                    raise RuntimeError(f"{src.name} isn't a readable app package")
+                have = winapps.newest(self.all_installed, info.name)
+                ok, why = winapps.verify_signature(p, have.publisher if have else None)
+                if not ok:
+                    raise RuntimeError(f"{src.name}: signature check failed ({why})")
+                old = perms.capabilities_installed(have.location) if have and have.location else set()
+                items.append(OfflineItem(p, info, have.version if have else "",
+                                         bool(have and info.version < have.vt), bool(have and info.version == have.vt),
+                                         perms.diff(old, perms.capabilities_package(p))))
+        except Exception:
+            shutil.rmtree(stage, ignore_errors=True)
+            raise
+        return sorted(items, key=lambda i: (not i.info.framework, i.info.name.lower()))
+
+    def install_reviewed(self, items: list["OfflineItem"], allow_downgrade: bool = False, report=lambda *a: None) -> list[str]:
+        """Step 2: install what the user approved. Frameworks first; same-version copies skipped; a downgrade only
+        if the user ticked it (then, and only then, Windows is allowed to go backwards)."""
         done = []
-        with self._install_lock:
-            for p in frameworks + [p for p in files if p not in frameworks]:
-                report("install", 0, 0, f"Installing {p.name}")
-                ok, err = winapps.install(p)
-                if not ok and "higher version" not in err.lower():
-                    raise RuntimeError(f"{p.name}: {winapps.explain(err)}")
-                done.append(p.name)
+        try:
+            with self._install_lock:
+                for it in items:
+                    if it.same or (it.downgrade and not allow_downgrade):
+                        continue
+                    report("install", 0, 0, f"Installing {it.label}")
+                    ok, err = winapps.install(it.path, force=it.downgrade)
+                    if not ok and "higher version" not in err.lower():
+                        raise RuntimeError(f"{it.label}: {winapps.explain(err)}")
+                    done.append(f"{it.label} {it.version}")
+        finally:
+            if items:
+                shutil.rmtree(items[0].path.parent, ignore_errors=True)
         self.all_installed = winapps.installed()
         return done
 

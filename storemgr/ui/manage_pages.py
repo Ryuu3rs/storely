@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +18,7 @@ import sys
 import PySide6
 
 from ..winsys import MARKETS, store_links_ours
+from .. import perms as perms_mod
 from .. import DATA_DIR, FROZEN, ROOT, __version__, admin, background, cleanup, debloat, diag, settings as settings_mod, storequeue, volumes, winapps, wpm
 from .. import ui_kit as K
 from ..browse import Card
@@ -252,10 +254,37 @@ class ManagePages:
         folder = QFileDialog.getExistingDirectory(self, "Folder with an offline copy (app + frameworks)")
         if not folder:
             return
-        self.statusBar().showMessage("Checking signatures and installing...")
-        self.jobs.run(lambda: self.engine.install_folder(Path(folder)), lambda res, e: (
-            QMessageBox.information(self, "Storely", "Installed:\n" + "\n".join(res)) if res else
-            QMessageBox.warning(self, "Storely", f"Nothing was installed: {e}"), self.rescan()))
+        self.statusBar().showMessage("Copying and checking the packages - nothing is installed yet...")
+        self.jobs.run(lambda: self.engine.review_folder(Path(folder)), self._review_offline)
+
+    def _review_offline(self, items, err):
+        self.statusBar().clearMessage()
+        if err or not items:
+            QMessageBox.warning(self, "Storely", f"Nothing was installed: {err or 'no app packages in that folder'}")
+            return
+        lines = []
+        for it in items:
+            what = ("runtime" if it.info.framework else
+                    "same version already installed - skipped" if it.same else
+                    f"OLDER than yours ({it.installed}) - a downgrade" if it.downgrade else
+                    f"update from {it.installed}" if it.installed else "new app")
+            perm = it.perms.added and not it.same and perms_mod.summary(it.perms)
+            lines.append(f"- {it.label} {it.version}  ({what})" + (f"\n    {perm}" if perm else "")
+                         + f"\n    publisher: {it.info.publisher.split(',')[0].removeprefix('CN=')}")
+        box = QMessageBox(QMessageBox.Question, "Storely", "Install this offline copy?\n\nEach package's signature has "
+                          "been checked. Here is what it would do:\n\n" + "\n".join(lines), QMessageBox.Yes | QMessageBox.No, self)
+        downgrade = QCheckBox("Also install the older versions (replaces your newer ones)")
+        if any(it.downgrade for it in items):
+            box.setCheckBox(downgrade)
+        if box.exec() != QMessageBox.Yes:
+            shutil.rmtree(items[0].path.parent, ignore_errors=True)
+            return
+        allow = downgrade.isChecked()
+        self.statusBar().showMessage("Installing the offline copy...")
+        self.jobs.run(lambda: self.engine.install_reviewed(items, allow), lambda res, e: (
+            self.statusBar().clearMessage(),
+            QMessageBox.information(self, "Storely", "Installed:\n" + "\n".join(res) if res else "Nothing needed installing.")
+            if not e else QMessageBox.warning(self, "Storely", f"Install stopped: {e}"), self.rescan()))
 
     def export_apps(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export app list", str(DATA_DIR / "my-apps.json"), "JSON (*.json)")

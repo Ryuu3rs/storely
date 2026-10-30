@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import re
@@ -206,33 +205,67 @@ class Dependency:
         return f"{self.name}_{publisher_id(self.publisher)}"
 
 
-def package_dependencies(path: Path, arch: str = ARCH) -> list[Dependency]:
-    """Framework dependencies declared by a .msix/.appx or the matching package inside a bundle."""
+def app_manifest(path: Path, arch: str = ARCH) -> bytes | None:
+    """AppxManifest.xml of a .msix/.appx, or of the app package inside a bundle that this PC would install.
+    The inner package is read in place (stored, so seekable) - big bundles are never loaded whole into memory."""
     with zipfile.ZipFile(path) as z:
         names = z.namelist()
-        if "AppxMetadata/AppxBundleManifest.xml" in names:
-            bm = ET.fromstring(z.read("AppxMetadata/AppxBundleManifest.xml"))
-            # skip stub packages (AppxMetadata\Stub\...) - placeholders, not the real app
-            pkgs = [p for p in bm.iter() if p.tag.endswith("}Package") and p.get("Type", "application") == "application"
-                    and "stub" not in (p.get("FileName") or "").replace("\\", "/").lower().split("/")[:-1]]
-            # explicit "is None" checks: an XML element with no children is falsy, so `or` would skip a real match
-            pick = next((p for p in pkgs if (p.get("Architecture") or "").lower() == arch), None)
-            if pick is None:
-                pick = next((p for p in pkgs if (p.get("Architecture") or "").lower() == "neutral"), None)
-            if pick is None and pkgs:
-                pick = pkgs[0]
-            if pick is None:
-                return []
-            inner_name = pick.get("FileName").replace("\\", "/")
-            if inner_name not in names:
-                return []   # can't see inside: let Windows' installer report any missing dependency itself
-            with zipfile.ZipFile(io.BytesIO(z.read(inner_name))) as inner:
-                manifest = inner.read("AppxManifest.xml")
-        else:
-            manifest = z.read("AppxManifest.xml")
+        if "AppxMetadata/AppxBundleManifest.xml" not in names:
+            return z.read("AppxManifest.xml") if "AppxManifest.xml" in names else None
+        bm = ET.fromstring(z.read("AppxMetadata/AppxBundleManifest.xml"))
+        # skip stub packages (AppxMetadata\Stub\...) - placeholders, not the real app
+        pkgs = [p for p in bm.iter() if p.tag.endswith("}Package") and p.get("Type", "application") == "application"
+                and "stub" not in (p.get("FileName") or "").replace("\\", "/").lower().split("/")[:-1]]
+        # explicit "is None" checks: an XML element with no children is falsy, so `or` would skip a real match
+        pick = next((p for p in pkgs if (p.get("Architecture") or "").lower() == arch), None)
+        if pick is None:
+            pick = next((p for p in pkgs if (p.get("Architecture") or "").lower() == "neutral"), None)
+        if pick is None and pkgs:
+            pick = pkgs[0]
+        if pick is None:
+            return None
+        inner_name = pick.get("FileName").replace("\\", "/")
+        if inner_name not in names:
+            return None
+        with z.open(inner_name) as f, zipfile.ZipFile(f) as inner:
+            return inner.read("AppxManifest.xml")
+
+
+def package_dependencies(path: Path, arch: str = ARCH) -> list[Dependency]:
+    """Framework dependencies declared by a .msix/.appx or the matching package inside a bundle."""
+    manifest = app_manifest(path, arch)
+    if manifest is None:
+        return []   # can't see inside: let Windows' installer report any missing dependency itself
     root = ET.fromstring(manifest)
     return [Dependency(d.get("Name"), vtuple(d.get("MinVersion", "0")), d.get("Publisher", ""))
             for d in root.iter() if d.tag.endswith("}PackageDependency")]
+
+
+@dataclass
+class PackageInfo:
+    name: str
+    version: tuple          # the app's own version (inside a bundle: the package this PC would install)
+    publisher: str
+    framework: bool
+    display_name: str
+
+
+def package_info(path: Path, arch: str = ARCH) -> PackageInfo | None:
+    try:
+        manifest = app_manifest(path, arch)
+        root = ET.fromstring(manifest) if manifest else None
+    except (OSError, KeyError, zipfile.BadZipFile, ET.ParseError):
+        return None
+    ident = root.find("{*}Identity") if root is not None else None
+    if ident is None:
+        return None
+    props = root.find("{*}Properties")
+    fw = props.find("{*}Framework") if props is not None else None
+    dname = props.find("{*}DisplayName") if props is not None else None
+    title = (dname.text or "").strip() if dname is not None else ""
+    return PackageInfo(ident.get("Name", ""), vtuple(ident.get("Version", "0")), ident.get("Publisher", ""),
+                       fw is not None and (fw.text or "").strip().lower() == "true",
+                       "" if title.startswith("ms-resource") else title)
 
 
 def is_framework_package(path: Path) -> bool:
