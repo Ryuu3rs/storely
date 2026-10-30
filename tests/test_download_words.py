@@ -22,3 +22,20 @@ def test_http_status_reads_plainly():
 
 def test_other_errors_pass_through():
     assert plain(RuntimeError("signature check failed")) == "signature check failed"
+
+
+def test_one_downloader_per_file(tmp_path):
+    import threading
+
+    import pytest
+
+    from storemgr.download import _FileLock
+    dest = tmp_path / "app.msix"
+    holder = _FileLock(dest, threading.Event()).__enter__()
+    try:
+        with pytest.raises(RuntimeError, match="still running"):
+            _FileLock(dest, threading.Event(), wait=1.5).__enter__()
+    finally:
+        holder.__exit__(None, None, None)
+    with _FileLock(dest, threading.Event(), wait=1):     # free again once the first one is done
+        pass

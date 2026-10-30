@@ -174,7 +174,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         m.addAction("Update all", self.update_all)
         m.addAction("Downloads", lambda: (self.showNormal(), self.show_page("downloads")))
         m.addSeparator()
-        m.addAction("Quit", QApplication.quit)
+        m.addAction("Quit", self.quit_app)
         self.tray.setContextMenu(m)
         self.tray.activated.connect(lambda r: self.showNormal() if r == QSystemTrayIcon.Trigger else None)
         self.tray.setToolTip(APP_NAME)
@@ -334,7 +334,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
                 QMessageBox.warning(self, APP_NAME, str(e))
                 return
             self.queue.save()
-            QApplication.quit()       # setup replaces the files, then starts the new version
+            self.quit_app(ask=False)  # setup replaces the files, then starts the new version
         self.jobs.run(lambda: updater.download(rel), done)
 
     def check_health(self):
@@ -685,7 +685,22 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             lst.append(app.family)
         settings_mod.save(self.settings)
 
+    def quit_app(self, ask: bool = True):
+        """Really quit (tray Quit, self-update) - unlike closing the window, which can keep work going in the tray."""
+        if ask and (self.queue.active() or self.jobs.active) and QMessageBox.question(
+                self, APP_NAME, "Downloads or installs are still running. Quit anyway?\n\n"
+                "(Paused downloads carry on where they left off next time.)") != QMessageBox.Yes:
+            return
+        self._quitting = True
+        self.queue.save()
+        self.engine.catalog.save()
+        self.tray.hide()
+        QApplication.quit()
+
     def closeEvent(self, e):
+        if getattr(self, "_quitting", False):
+            super().closeEvent(e)
+            return
         if self.queue.active() or self.jobs.active:
             r = QMessageBox.question(self, APP_NAME, "Downloads or installs are still running. Keep them going in the tray?\n\n"
                                      "(No = quit now - paused downloads resume next time)")

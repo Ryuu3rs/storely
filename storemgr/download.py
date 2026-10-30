@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -78,11 +79,50 @@ def _size_of(url: str) -> int:
         return 0
 
 
+class _FileLock:
+    """Only one downloader per file - across threads AND processes (the window and the background updater can
+    want the same package, and two apps can need the same runtime). Windows drops the lock if the holder dies."""
+
+    def __init__(self, dest: Path, cancel: threading.Event, wait: float = 3600):
+        self.path, self.cancel, self.wait, self.fd = dest.with_suffix(dest.suffix + ".lock"), cancel, wait, None
+
+    def __enter__(self):
+        import msvcrt
+        self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT)
+        end = time.monotonic() + self.wait
+        while True:
+            try:
+                msvcrt.locking(self.fd, msvcrt.LK_NBLCK, 1)
+                return self
+            except OSError:
+                if self.cancel.is_set():
+                    os.close(self.fd)
+                    raise Cancelled() from None
+                if time.monotonic() > end:
+                    os.close(self.fd)
+                    raise RuntimeError("another download of this file is still running") from None
+                time.sleep(1)
+
+    def __exit__(self, *exc):
+        import msvcrt
+        try:
+            os.lseek(self.fd, 0, 0)
+            msvcrt.locking(self.fd, msvcrt.LK_UNLCK, 1)
+        finally:
+            os.close(self.fd)
+
+
 def fetch(url: str, dest: Path, size: int, digest: str, progress=None, cancel: threading.Event | None = None,
           algo: str = "sha1") -> Path:
     """Download url to dest (size bytes; 0 = ask the server), resuming a previous partial download, and check the
-    digest. progress(done, total, bytes_per_s)."""
+    digest. progress(done, total, bytes_per_s). If someone else is already downloading the same file, waits for
+    them and uses their result."""
     cancel = cancel or threading.Event()
+    with _FileLock(dest, cancel):
+        return _fetch(url, dest, size, digest, progress, cancel, algo)
+
+
+def _fetch(url: str, dest: Path, size: int, digest: str, progress, cancel: threading.Event, algo: str) -> Path:
     digest = digest if algo == "sha1" else digest.lower()
     part = dest.with_suffix(dest.suffix + ".part")
     state_file = dest.with_suffix(dest.suffix + ".state")

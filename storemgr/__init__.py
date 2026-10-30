@@ -65,14 +65,27 @@ RESULTS_DIR = MACHINE_DIR / "results"
 def _migrate() -> None:
     """Carry settings, history, holds and wishlist over from the old name (the whole folder if nothing has it
     open, else a copy of everything but the log)."""
+    import shutil
     old = next((d for d in OLD_DATA_DIRS if d.is_dir()), None)
-    if DATA_DIR.exists() or old is None:
+    if old is None:
         return
-    try:
-        old.rename(DATA_DIR)
-    except OSError:
-        import shutil
-        shutil.copytree(old, DATA_DIR, ignore=shutil.ignore_patterns("*.log", "*.part", "*.state"), dirs_exist_ok=True)
+    if not DATA_DIR.exists():
+        try:
+            old.rename(DATA_DIR)
+            return
+        except OSError:      # the old app still has it open: copy what matters instead
+            pass
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # only the user's own records - never downloads, rollback copies or caches (can be gigabytes, all re-creatable),
+    # and never over something Storely already has
+    for name in MIGRATE_FILES:
+        src, dst = old / name, DATA_DIR / name
+        if src.is_file() and not dst.exists():
+            shutil.copy2(src, dst)
+
+
+MIGRATE_FILES = ("settings.json", "history.json", "changelog.json", "desktop_apps.json", "removed.json", "volume.json",
+                 "queue.json")
 
 
 try:
