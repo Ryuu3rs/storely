@@ -95,7 +95,7 @@ def store_links_ours() -> bool:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations"
                                                       r"\ms-windows-store\UserChoice") as k:
-            return winreg.QueryValueEx(k, "ProgId")[0] == STORE_LINK_PROGID
+            return winreg.QueryValueEx(k, "ProgId")[0] in (STORE_LINK_PROGID, "MyStore.StoreLink")   # the old name now opens Storely too
     except OSError:
         return False
 

@@ -25,6 +25,8 @@ VersionInfoVersion={#AppVersion}
 VersionInfoDescription={#AppName} Setup
 DefaultDirName={autopf}\{#AppName}
 UsePreviousAppDir=no
+; always Program Files (admin-only): Storely's admin safety depends on nobody else being able to change its files
+DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 #if Arch == "arm64"
@@ -52,7 +54,7 @@ ChangesAssociations=yes
 UsePreviousTasks=yes
 
 [Tasks]
-Name: "desktopicon"; Description: "Put an Storely shortcut on the desktop"; GroupDescription: "Shortcuts:"
+Name: "desktopicon"; Description: "Put a Storely shortcut on the desktop"; GroupDescription: "Shortcuts:"
 Name: "background"; Description: "Keep apps updated in the background (runs as you at sign-in and every 6 hours, no admin)"; GroupDescription: "Updates:"; Flags: unchecked
 Name: "storelinks"; Description: "Open Microsoft Store links in Storely (you confirm it in Windows Settings next)"; GroupDescription: "Microsoft Store links:"; Flags: unchecked
 
@@ -60,9 +62,9 @@ Name: "storelinks"; Description: "Open Microsoft Store links in Storely (you con
 ; upgrades: drop the previous build's runtime so no stale modules are left behind
 Type: filesandordirs; Name: "{app}\_internal"
 ; "My Store" (before 1.2): its program folder and shortcuts - settings are carried over by the app itself
-Type: filesandordirs; Name: "{autopf}\My Store"
-Type: files; Name: "{autoprograms}\My Store.lnk"
-Type: files; Name: "{autodesktop}\My Store.lnk"
+Type: filesandordirs; Name: "{autopf}\My Store"; Check: OldMyStorePresent
+Type: files; Name: "{autoprograms}\My Store.lnk"; Check: OldMyStorePresent
+Type: files; Name: "{autodesktop}\My Store.lnk"; Check: OldMyStorePresent
 
 [Files]
 Source: "..\dist\Storely\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -73,7 +75,8 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "
 
 [Registry]
 ; the old name's registrations
-Root: HKLM; Subkey: "Software\Classes\MyStore.StoreLink"; Flags: deletekey
+; anyone who picked My Store for Store links keeps a working choice: the old ProgId now opens Storely
+Root: HKLM; Subkey: "Software\Classes\MyStore.StoreLink\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""; Flags: uninsdeletekey; Check: OldStoreLinkPresent
 Root: HKLM; Subkey: "Software\MyStore"; Flags: deletekey
 Root: HKLM; Subkey: "Software\RegisteredApplications"; ValueName: "My Store"; Flags: deletevalue
 ; storely:// - notification buttons ("Update all") start or reach the app through this
@@ -93,8 +96,8 @@ Root: HKLM; Subkey: "Software\Storely\Capabilities\UrlAssociations"; ValueType: 
 Root: HKLM; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "{#AppName}"; ValueData: "Software\Storely\Capabilities"; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\{#AppExe}"; Parameters: "--enable-background"; StatusMsg: "Turning on background updates..."; Tasks: background; Flags: runasoriginaluser runhidden waituntilterminated
-Filename: "ms-settings:defaultapps?registeredAppMachine=Storely"; Tasks: storelinks; Flags: shellexec runasoriginaluser nowait
+Filename: "{app}\{#AppExe}"; Parameters: "--enable-background"; StatusMsg: "Turning on background updates..."; Tasks: background; Flags: runasoriginaluser runhidden waituntilterminated; Check: not WizardSilent
+Filename: "ms-settings:defaultapps?registeredAppMachine=Storely"; Tasks: storelinks; Flags: shellexec runasoriginaluser nowait; Check: not WizardSilent
 Filename: "{app}\{#AppExe}"; Description: "Open Storely now"; Flags: postinstall nowait skipifsilent runasoriginaluser
 ; self-update runs setup silently: reopen the app afterwards
 Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
@@ -109,14 +112,28 @@ Type: filesandordirs; Name: "{commonappdata}\Storely\results"
 Type: filesandordirs; Name: "{commonappdata}\Storely\staging"
 
 [Code]
+function OldMyStorePresent: Boolean;
+begin
+  { only ever touch the real pre-1.2 "My Store" install, never just anything with that name }
+  Result := FileExists(ExpandConstant('{autopf}\My Store\MyStore.exe'));
+end;
+
+function OldStoreLinkPresent: Boolean;
+begin
+  Result := RegKeyExists(HKLM, 'Software\Classes\MyStore.StoreLink');
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
 begin
   { the pre-1.2 "My Store" lives in another folder, so Windows' restart manager won't close it for us }
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM MyStore.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
-  Sleep(2000);
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM MyStore.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  if OldMyStorePresent then
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM MyStore.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Sleep(2000);
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM MyStore.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  end;
   Result := '';
 end;
 
