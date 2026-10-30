@@ -252,7 +252,11 @@ def preferred(vols: list[Volume] | None = None) -> Volume | None:
         return None
     if not path:
         return None
-    return next((v for v in (vols if vols is not None else volumes()) if v.path.lower() == path.lower()), None)
+    try:
+        vols = vols if vols is not None else volumes()
+    except Exception:          # Windows busy (timeout) or the volume list unreadable: behave as "Windows' default"
+        return None
+    return next((v for v in vols if v.path.lower() == path.lower()), None)
 
 
 def set_preferred(volume_path: str | None) -> None:
@@ -271,7 +275,7 @@ def install_args(vols: list[Volume] | None = None) -> str:
     """' -Volume <path>' for Add-AppxPackage when the user picked a drive other than Windows' default, else ''."""
     try:
         vols = vols if vols is not None else volumes()
-    except (RuntimeError, OSError, ValueError):
+    except Exception:          # includes winapps.WindowsBusy (a timeout): install to Windows' default instead
         return ""
     v = preferred(vols)
     if v is None or not v.usable or v.is_default:

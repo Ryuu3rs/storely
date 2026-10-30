@@ -63,6 +63,7 @@ def elevated_main(argv: list[str]) -> int:
     p.add_argument("--path", default="")
     p.add_argument("--dep", action="append", default=[])
     p.add_argument("--close", action="store_true")
+    p.add_argument("--force", action="store_true")      # an older version the user picked
     p.add_argument("--publisher", default="")
     p.add_argument("--value", choices=["on", "off"], default="off")
     p.add_argument("--drive", default="")
@@ -204,8 +205,8 @@ def _install(a, res: dict) -> None:
         main = _stage(Path(a.path), stage, a.publisher or None)
         deps = [_stage(Path(d), stage, None) for d in a.dep]
         dep = f" -DependencyPath {','.join(q(d) for d in deps)}" if deps else ""
-        force = " -ForceApplicationShutdown" if a.close else ""
-        r = ps(f"$ErrorActionPreference='Stop'; Add-AppxPackage -Path {q(main)}{dep} -ForceUpdateFromAnyVersion{force}; 'OK'",
+        force = (" -ForceApplicationShutdown" if a.close else "") + (" -ForceUpdateFromAnyVersion" if a.force else "")
+        r = ps(f"$ErrorActionPreference='Stop'; Add-AppxPackage -Path {q(main)}{dep}{force}; 'OK'",
                timeout=1800)
         if r.returncode == 0 and r.stdout.strip().endswith("OK"):
             res["steps"].append(f"installed {main.name}")

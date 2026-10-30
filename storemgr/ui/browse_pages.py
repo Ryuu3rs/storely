@@ -329,7 +329,7 @@ class BrowsePages:
             if a.installed:
                 line.append(f"Installed {a.current_str}")
             if a.latest:
-                line.append(f"Latest {a.latest.version_str} ({fmt_size(a.latest.size)})")
+                line.append(f"Latest {a.latest_str} ({fmt_size(a.latest.size)})")
         else:
             line.append(f"Desktop installer  ·  version {d.version}")
             line.append(f"Installed {d.installed_version}" if d.installed_version else "Not installed")
@@ -440,7 +440,7 @@ class BrowsePages:
             if det.get("updated"):
                 lines.append(f"Last updated by the publisher: {det['updated']:%d %b %Y}")
             if a and a.update_available:
-                lines.append(f"New version {a.latest.version_str} (you have {a.current_str}) - {fmt_size(a.latest.size)} download")
+                lines.append(f"New version {a.latest_str} (you have {a.current_str}) - {fmt_size(a.latest.size)} download")
             hist = engine_mod.changelog(fam) if fam else []
             for h in reversed(hist[-5:]):
                 lines.append(f"{datetime.fromtimestamp(h['t']):%d %b %Y %H:%M}  -  Storely updated it {h['from'] or 'new'} → {h['to']}")

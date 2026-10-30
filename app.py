@@ -553,7 +553,7 @@ class Main(QMainWindow, BrowsePages, ManagePages):
         cur = self.settings.get("holds", {}).get(app.family)
         hold.addAction(("✓ " if cur == "all" else "") + "Never update this app", lambda: self.set_hold(app.family, "all"))
         if app.latest:
-            v = app.latest.version_str
+            v = app.latest_str
             hold.addAction(("✓ " if cur == v else "") + f"Skip version {v}", lambda: self.set_hold(app.family, v))
         if cur:
             hold.addAction("Release hold", lambda: self.set_hold(app.family, None))
@@ -592,20 +592,28 @@ class Main(QMainWindow, BrowsePages, ManagePages):
                 QMessageBox.information(self, APP_NAME, f"Microsoft only offers the current version of {app.title}."
                                         if not err else f"Couldn't list versions: {err}")
                 return
-            cur = app.current_str
-            names = [f"{f.version_str}" + ("   (installed)" if f.version_str == cur else "") + f"   {fmt_size(f.size)}"
-                     for f in vers]
+            show = lambda f: ".".join(map(str, app.target(f)))     # noqa: E731 - the app's version, not the bundle's
+            names = [show(f) + ("   (installed)" if app.installed and app.target(f) == app.base(f) else "")
+                     + f"   {fmt_size(f.size)}" for f in vers]
             choice, ok = QInputDialog.getItem(self, APP_NAME, f"Install which version of {app.title}?\n"
                                               "Microsoft keeps only some older builds.", names, 0, False)
             if not ok:
                 return
             pick = vers[names.index(choice)]
-            if pick.version_str == cur:
+            if app.installed and app.target(pick) == app.base(pick):
                 return
-            if pick.version < app.current and QMessageBox.question(
-                    self, APP_NAME, f"Hold {app.title} at {pick.version_str} so it isn't updated straight back?") == QMessageBox.Yes:
+            queued = self.queue.find(app.family)
+            if queued and queued.state not in ("queued", "paused"):
+                QMessageBox.information(self, APP_NAME, f"{app.title} is already downloading or installing. "
+                                        "Pick a version again once that has finished.")
+                return
+            if app.installed and app.target(pick) < app.base(pick) and QMessageBox.question(
+                    self, APP_NAME, f"Hold {app.title} at {show(pick)} so it isn't updated straight back?") == QMessageBox.Yes:
                 self.set_hold(app.family, "all")
-            self.queue.add_store(app, close_app=True, version=pick.version_str)
+            if queued:
+                self.queue.set_version(queued.id, pick.version_str)
+            else:
+                self.queue.add_store(app, close_app=True, version=pick.version_str)
             self.show_page("downloads")
         self.jobs.run(lambda: self.engine.versions(app), got)
 

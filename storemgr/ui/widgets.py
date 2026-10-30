@@ -301,7 +301,7 @@ class AppRow(QFrame):
         job = w.jobs.active.get(a.family)
         self.title.setText(a.title)
         pub = p.publisher if p else (a.installed.publisher.split(",")[0].replace("CN=", "") if a.installed else "")
-        ver = (f"Version {a.current_str}" + (f"  →  {a.latest.version_str}" if a.update_available else "")) if a.installed else "Not installed"
+        ver = (f"Version {a.current_str}" + (f"  →  {a.latest_str}" if a.update_available else "")) if a.installed else "Not installed"
         if a.is_held:
             ver += "   ·   held" if a.held == "all" else f"   ·   skipping {a.held}"
         size = w.sizes.get(a.family)

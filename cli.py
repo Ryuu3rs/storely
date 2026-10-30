@@ -102,7 +102,7 @@ def main(argv):
             if winget.available():
                 others = winget.list_upgrades()
         if as_json:
-            return emit({"store": [{"title": a.title, "family": a.family, "from": a.current_str, "to": a.latest.version_str,
+            return emit({"store": [{"title": a.title, "family": a.family, "from": a.current_str, "to": a.latest_str,
                                     "size": a.latest.size} for a in apps if a.update_available],
                          "held": [{"title": a.title, "family": a.family, "hold": a.held} for a in apps if a.is_held],
                          "frameworks": [{"name": h.name, "arch": h.arch, "from": h.version, "to": p.version_str}
@@ -110,7 +110,7 @@ def main(argv):
                          "winget": [o.__dict__ for o in others]})
         for a in apps:
             if a.update_available:
-                print(f"  UPDATE  {a.title[:36]:36} {a.current_str} -> {a.latest.version_str}  ({a.latest.size / 1048576:.0f} MB)")
+                print(f"  UPDATE  {a.title[:36]:36} {a.current_str} -> {a.latest_str}  ({a.latest.size / 1048576:.0f} MB)")
             elif a.is_held:
                 print(f"  HELD    {a.title[:36]:36} {a.held}")
             elif a.check_error and a.product:

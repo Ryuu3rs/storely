@@ -1,4 +1,6 @@
-"""Pure logic: version lines, publisher hash, Store links."""
+"""Pure logic: version lines, publisher hash, Store links, bundle vs app versions."""
+
+from dataclasses import replace
 
 import pytest
 
@@ -46,6 +48,49 @@ def test_best_finds_date_style_update():
 def test_best_stays_on_realtek_line():
     files = [pkg("Realtek", "1.54.398.0"), pkg("Realtek", "2.54.397.0")]
     assert fe3.best(files, "Realtek", "x64", (1, 54, 398, 0)).version_str == "1.54.398.0"
+
+
+def bundle(version, inner):
+    return PackageFile(identity=f"Microsoft.BingNews_{version}_neutral_~_8wekyb3d8bbwe", name="Microsoft.BingNews",
+                       version=fe3.vtuple(version), arch="neutral", ext="appxbundle", size=1, digest="", update_id="",
+                       revision="1", bundled=tuple((a, fe3.vtuple(inner)) for a in ("x64", "x86", "arm")))
+
+
+def news_app(pool):
+    from storemgr.engine import App
+    from storemgr.winapps import Installed
+
+    def inst(v, bundle_):
+        return Installed("Microsoft.BingNews", f"Microsoft.BingNews_{v}", "Microsoft.BingNews_8wekyb3d8bbwe", v,
+                         "neutral" if bundle_ else "x64", "CN=Microsoft Corporation", False, False, True, "C:\\x", "Ok",
+                         True, bundle_)
+    a = App("Microsoft.BingNews_8wekyb3d8bbwe", inst("4.56.21872.0", False), None, bundle=inst("4.7.6002.0", True))
+    a.pool = pool
+    a.latest = max(pool, key=lambda f: a.target(f))
+    return a
+
+
+def test_bundle_number_is_not_the_app_version():
+    # live case: bundle 4.7 holds app 4.56; Microsoft offers bundle 4.31 holding app 4.31 - a downgrade, not an update
+    a = news_app([bundle("4.31.12124.0", "4.31.12124.0")])
+    assert a.target(a.latest) == (4, 31, 12124, 0) and a.current == (4, 56, 21872, 0)
+    assert not a.update_available
+
+
+def test_real_update_inside_a_bundle_is_offered():
+    a = news_app([bundle("4.31.12124.0", "4.31.12124.0"), bundle("4.58.1.0", "4.58.1.0")])
+    assert a.update_available and a.latest_str == "4.58.1.0"
+
+
+def test_unknown_bundle_contents_fall_back_to_bundle_numbers():
+    f = replace(bundle("4.8.0.0", "1.0"), bundled=())
+    a = news_app([f])
+    assert f.app_version("x64") is None and a.current == (4, 7, 6002, 0) and a.update_available
+
+
+def test_inner_version_prefers_this_pcs_processor():
+    f = replace(bundle("1.0.0.0", "1.0"), bundled=(("x86", (1, 1)), ("x64", (1, 2)), ("arm", (1, 3))))
+    assert f.app_version("x64") == (1, 2)
 
 
 def test_for_this_pc_drops_xbox_and_arm_only():

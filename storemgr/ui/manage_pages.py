@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -562,8 +561,9 @@ class ManagePages:
             dc.setCurrentIndex(1 + usable.index(pref) if pref in usable else 0)
 
             def pick(i):
-                volumes.set_preferred(usable[i - 1].path if i else None)
-                self.engine.install_root = Path(usable[i - 1].path if i else os.environ.get("SystemDrive", "C:") + "\\")
+                path = usable[i - 1].path if i else None
+                self.jobs.run(lambda: volumes.set_preferred(path), lambda r, e: e and (
+                    QMessageBox.warning(self, "Storely", f"Couldn't use that drive: {e}"), self.render_settings()))
             dc.currentIndexChanged.connect(pick)
             row.addWidget(dc)
             row.addStretch()

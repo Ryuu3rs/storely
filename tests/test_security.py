@@ -74,7 +74,7 @@ def test_protected_sddl_is_itself_protected():
 
 def test_real_acls():
     assert secure.untrusted_writers(os.environ["SystemRoot"] + r"\System32") == []
-    assert "S-1-5-32-545" in secure.untrusted_writers(os.environ["ProgramData"])
+    assert "S-1-5-32-545" in secure.untrusted_writers(os.environ["SystemDrive"] + "\\ProgramData")    # real one, not the test sandbox
 
 
 @pytest.mark.parametrize("argv", [

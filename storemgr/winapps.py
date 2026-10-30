@@ -315,11 +315,13 @@ def _run(script: str, timeout: float) -> tuple[bool, str]:
 
 
 def install(path: Path, deps: list[Path] | None = None, close_app: bool = False, timeout: float = 900,
-            volume_args: str = "") -> tuple[bool, str]:
+            volume_args: str = "", force: bool = False) -> tuple[bool, str]:
+    """force=True lets Windows install an OLDER (or the same) version - only for a version the user picked, or a
+    roll back. Normal updates leave it off, so Windows itself refuses anything that would go backwards."""
     dep = f" -DependencyPath {','.join(q(d) for d in deps)}" if deps else ""
-    force = " -ForceApplicationShutdown" if close_app else ""
-    return _run(f"$ErrorActionPreference='Stop'; Add-AppxPackage -Path {q(path)}{dep} -ForceUpdateFromAnyVersion{force}"
-                f"{volume_args}", timeout)
+    shutdown = " -ForceApplicationShutdown" if close_app else ""
+    anyver = " -ForceUpdateFromAnyVersion" if force else ""
+    return _run(f"$ErrorActionPreference='Stop'; Add-AppxPackage -Path {q(path)}{dep}{anyver}{shutdown}{volume_args}", timeout)
 
 
 def repair(pkg: Installed, timeout: float = 600) -> tuple[bool, str]:

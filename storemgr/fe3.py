@@ -82,10 +82,23 @@ class PackageFile:
     revision: str
     bundled_archs: tuple = ()     # processor types actually inside a bundle (from Microsoft's applicability blob)
     targets: tuple = ()           # ((platform code, min Windows version ulong), ...): 0 universal, 3 desktop, 5 Xbox
+    bundled: tuple = ()           # ((arch, version), ...) of the app packages inside a bundle
 
     @property
     def filename(self) -> str:
         return f"{self.identity}.{self.ext}"
+
+    def app_version(self, arch: str) -> tuple | None:
+        """Version of the app this file actually installs on a PC with `arch`. A bundle's own version is a separate
+        number (Microsoft News: bundle 4.7 holds app 4.56, bundle 4.31 holds app 4.31) - comparing bundles with
+        bundles offers downgrades as "updates". None if unknown."""
+        if not self.ext.endswith("bundle"):
+            return self.version
+        inner = dict(self.bundled)
+        for a in (arch, "neutral", *sorted(RUNNABLE.get(arch, set()) - {arch, "neutral"})):
+            if a in inner:
+                return inner[a]
+        return None
 
     @property
     def version_str(self) -> str:
@@ -189,19 +202,23 @@ def packages(wu_category: str) -> list[PackageFile]:
         p = _RE_PKG.match(f.group(4))
         if not p:
             continue
-        archs, targets = (), ()
+        archs, targets, bundled = (), (), ()
         blob = _RE_BLOB.search(x)
         if blob:
             try:
                 b = json.loads(blob.group(1))
-                archs = tuple(sorted({s.split("_")[2].lower() for s in b.get("content.bundledPackages") or [] if s.count("_") >= 2}))
+                inner = b.get("content.bundledPackages") or []
+                archs = tuple(sorted({s.split("_")[2].lower() for s in inner if s.count("_") >= 2}))
+                bundled = tuple((parts[2].lower(), vtuple(parts[1])) for parts in (s.split("_") for s in inner)
+                                if len(parts) == 5 and not parts[3] and parts[0].lower() == p.group(1).lower())
                 targets = tuple((int(t.get("platform.target", -1)), int(t.get("platform.minVersion") or 0))
                                 for t in b.get("content.targetPlatforms") or [])
             except (ValueError, TypeError):
                 pass
         out.append(PackageFile(identity=f.group(4), name=p.group(1), version=vtuple(p.group(2)), arch=p.group(3).lower(),
                                ext=f.group(1).lower(), size=int(f.group(3)), digest=f.group(2),
-                               update_id=ident.group(1), revision=ident.group(2), bundled_archs=archs, targets=targets))
+                               update_id=ident.group(1), revision=ident.group(2), bundled_archs=archs, targets=targets,
+                               bundled=bundled))
     return out
 
 

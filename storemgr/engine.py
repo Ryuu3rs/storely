@@ -8,7 +8,7 @@ import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from . import DATA_DIR, DOWNLOAD_DIR, ROLLBACK_DIR, admin, fe3, perms, storequeue, volumes, winapps
@@ -31,6 +31,7 @@ class Prepared:
     main: Path
     deps: list
     perms: perms.Change | None = None     # permissions the new version adds over the installed one
+    older: bool = False                    # the user chose an older version: only then may Windows go backwards
 
 
 CHANGELOG_FILE = DATA_DIR / "changelog.json"
@@ -68,16 +69,29 @@ class App:
     pool: list = field(default_factory=list)
     held: str = ""          # "all" = never update, or a version string to skip
 
-    @property
-    def current(self) -> tuple:
-        """Installed version on the same footing as `latest` (bundles are versioned separately from the app inside)."""
-        if self.latest and self.latest.ext.endswith("bundle") and self.bundle:
+    def target(self, f: PackageFile) -> tuple:
+        """The version `f` would leave installed: for a bundle, the app inside it for this PC (bundles carry their
+        own, unrelated number). Falls back to the bundle number only if Microsoft didn't say what's inside."""
+        return f.app_version(winapps.ARCH) or f.version
+
+    def base(self, f: PackageFile | None = None) -> tuple:
+        """What `target(f)` is compared against: the installed app's version, or - only when a bundle's contents are
+        unknown - the installed bundle's own number."""
+        if f is not None and f.ext.endswith("bundle") and f.app_version(winapps.ARCH) is None and self.bundle:
             return self.bundle.vt
         return self.installed.vt if self.installed else (0,)
 
     @property
+    def current(self) -> tuple:
+        return self.base(self.latest)
+
+    @property
     def current_str(self) -> str:
         return ".".join(map(str, self.current))
+
+    @property
+    def latest_str(self) -> str:
+        return ".".join(map(str, self.target(self.latest))) if self.latest else ""
 
     @property
     def title(self) -> str:
@@ -89,11 +103,12 @@ class App:
 
     @property
     def update_available(self) -> bool:
-        return bool(self.latest and self.installed and self.latest.version > self.current and not self.is_held)
+        return bool(self.latest and self.installed and self.target(self.latest) > self.current and not self.is_held)
 
     @property
     def is_held(self) -> bool:
-        return bool(self.held) and (self.held == "all" or (self.latest is not None and self.held == self.latest.version_str))
+        return bool(self.held) and (self.held == "all" or (self.latest is not None and self.held in
+                                                           (self.latest.version_str, self.latest_str)))
 
     @property
     def package_name(self) -> str:
@@ -108,9 +123,20 @@ class Engine:
         self.apps: dict[str, App] = {}
         self.all_installed: list[winapps.Installed] = []
         self.allow_admin = True     # False in the background updater: no surprise admin prompts
-        pref = volumes.preferred()
-        self.install_root = Path(pref.path if pref else os.environ.get("SystemDrive", "C:") + "\\")   # where packages unpack
         self._install_lock = InstallLock()   # Windows' installer jams when jobs overlap: one at a time, PC-wide
+
+    @staticmethod
+    def install_drive() -> str:
+        """Where a NEW app unpacks: the drive chosen in Settings if it's there right now, else the system drive.
+        Never raises - a busy Windows or an unplugged drive must not stop installs (or the app starting)."""
+        system = os.environ.get("SystemDrive", "C:") + "\\"
+        try:
+            pref = volumes.preferred()
+        except Exception as e:
+            log.warning("couldn't read the chosen install drive (%s) - using %s", e, system)
+            return system
+        root = Path(pref.path).anchor if pref else system
+        return root if Path(root).exists() else system
 
     # ------------------------------------------------------------------ inventory
 
@@ -154,13 +180,13 @@ class Engine:
             app.files = fe3.for_this_pc(fe3.packages(app.product.wu_category), app.product.platforms, winapps.ARCH)
             mine = [f for f in app.files if f.name.lower() == app.package_name.lower()]
             if app.bundle and any(f.ext.endswith("bundle") for f in mine):
-                pool, line = [f for f in mine if f.ext.endswith("bundle")], app.bundle.vt
+                pool = [f for f in mine if f.ext.endswith("bundle")]
             else:
-                pool, line = [f for f in mine if not f.ext.endswith("bundle")] or mine, app.installed.vt if app.installed else None
+                pool = [f for f in mine if not f.ext.endswith("bundle")] or mine
             mine_here = [f for f in pool if f.arch in (winapps.ARCH, "neutral", "")]
-            offered = fe3.majors(mine_here)
-            app.pool = [f for f in mine_here if not line or fe3.same_line(f.version, line, offered)]
-            app.latest = fe3.best(pool, app.package_name, winapps.ARCH, line)
+            offered = fe3.majors([replace(f, version=app.target(f)) for f in mine_here])
+            app.pool = [f for f in mine_here if not app.installed or fe3.same_line(app.target(f), app.base(f), offered)]
+            app.latest = max(app.pool, key=lambda f: (app.target(f), f.arch == winapps.ARCH, f.version), default=None)
             if not app.latest and not pool:
                 app.check_error = "no build for this edition of Windows in Microsoft's delivery service"
             # pool but nothing on this version line: Microsoft only has other-edition builds - nothing to update
@@ -232,9 +258,11 @@ class Engine:
             raise RuntimeError(app.check_error or "nothing to install")
         publisher = app.installed.publisher if app.installed else None
         # newest first; a version can be announced before its download is live - fall back to the next one
-        current = app.current if app.installed else (0,)
-        cands = [pick] if pick else sorted({f.identity: f for f in (app.pool or [app.latest]) if f.version > current}.values(),
-                                           key=lambda f: (f.version, f.arch == winapps.ARCH), reverse=True) or [app.latest]
+        newer = {f.identity: f for f in (app.pool or [app.latest]) if not app.installed or app.target(f) > app.base(f)}
+        cands = [pick] if pick else sorted(newer.values(), key=lambda f: (app.target(f), f.arch == winapps.ARCH),
+                                           reverse=True)
+        if not cands:
+            raise NotYetOut(f"nothing newer than {app.current_str} for this PC")
         pkg = url = None
         for cand in cands:
             try:
@@ -249,9 +277,11 @@ class Engine:
             app.latest = None
             app.check_error = f"newest version announced but not downloadable yet ({cands[0].version_str})"
             raise NotYetOut(app.check_error)
-        log.info("update %s -> %s", app.family, pkg.identity)
+        log.info("update %s -> %s (app %s)", app.family, pkg.identity, ".".join(map(str, app.target(pkg))))
         need_space(DOWNLOAD_DIR, pkg.size + 100 * 2**20, "the download")
-        need_space(self.install_root, 2 * pkg.size + 500 * 2**20, "installing it")   # unpacked is bigger than the download
+        # unpacked is bigger than the download; an update unpacks where the app already lives, a new app on the chosen drive
+        root = Path(app.installed.location).anchor if app.installed and app.installed.location else self.install_drive()
+        need_space(root, 2 * pkg.size + 500 * 2**20, "installing it")
         stale = storequeue.cancel(app.family)   # the Store's own copy of this job would fight ours
         if stale:
             log.info("cancelled Store queue items: %s", stale)
@@ -263,7 +293,8 @@ class Engine:
             log.info("%s %s permissions: %s", app.family, "adds" if app.installed else "wants",
                      ", ".join(p.name for p in change.added))
         deps = self._dependencies(main, app.files, report, cancel)
-        return Prepared(pkg, main, deps, change)
+        older = bool(pick and app.installed and app.target(pick) < app.base(pick))
+        return Prepared(pkg, main, deps, change, older)
 
     def install(self, app: App, prep: "Prepared", report=lambda *a: None, cancel: threading.Event | None = None,
                 close_app: bool = False, install_timeout: float = 900) -> str:
@@ -282,24 +313,28 @@ class Engine:
                 if not ok and "higher version" not in err.lower():
                     raise RuntimeError(f"dependency {d.name}: {err}")
             vol = volumes.install_args() if not app.installed else ""    # updates stay where the app already is
-            ok, err = winapps.install(main, close_app=close_app, timeout=install_timeout, volume_args=vol)
+            ok, err = winapps.install(main, close_app=close_app, timeout=install_timeout, volume_args=vol, force=prep.older)
             if not ok and vol and any(c in err for c in ("0x80070005", "0x800703EE")):
-                log.info("installing to the chosen drive was refused (%s) - using Windows' default", err.splitlines()[0][:120])
-                ok, err = winapps.install(main, close_app=close_app, timeout=install_timeout)
+                log.info("installing to the chosen drive was refused (%s) - using Windows' default", (err.splitlines() or [""])[0][:120])
+                ok, err = winapps.install(main, close_app=close_app, timeout=install_timeout, force=prep.older)
             if not ok and "0x80073D28" in err and self.allow_admin:
                 # the package installs a Windows service (Codex does) - Windows insists on admin rights for that
                 report("install", 0, 0, "This app installs a Windows service - approve the admin prompt")
                 log.info("%s needs admin (packaged service) - elevating", pkg.identity)
-                r = admin.install(main, close_app=close_app, publisher=app.installed.publisher if app.installed else None)
+                r = admin.install(main, close_app=close_app, publisher=app.installed.publisher if app.installed else None,
+                                  force=prep.older)
                 ok, err = r.get("ok", False), "; ".join(r.get("errors", [])) or "admin install failed"
             if not ok:
-                raise RuntimeError(err)
+                raise RuntimeError(err or "Windows' installer failed without saying why")
+        expected = app.target(pkg)
+        inner_known = pkg.app_version(winapps.ARCH) is not None or not pkg.ext.endswith("bundle")
         self.all_installed = winapps.installed()
         now = winapps.newest(self.all_installed, app.package_name)
         bundle = next((p for p in self.all_installed if p.is_bundle and p.family == app.family), None)
-        got = bundle.vt if pkg.ext.endswith("bundle") and bundle else (now.vt if now else (0,))
-        if not now or got < pkg.version:
-            raise RuntimeError(f"Windows reported success but {app.package_name} is still {'.'.join(map(str, got))}")
+        got = (now.vt if now else (0,)) if inner_known else (bundle.vt if bundle else (0,))
+        if not now or (got != expected if prep.older else got < expected):
+            raise RuntimeError(f"Windows reported success but {app.package_name} is {'.'.join(map(str, got))}, "
+                               f"not {'.'.join(map(str, expected))}")
         old = app.current_str if app.installed else ""
         app.installed, app.bundle = now, bundle
         app.entries = winapps.manifest_apps(now.location)
@@ -363,7 +398,7 @@ class Engine:
     def update_framework(self, have: winapps.Installed, pkg: PackageFile, report=lambda *a: None,
                          cancel: threading.Event | None = None) -> str:
         cancel = cancel or threading.Event()
-        need_space(self.install_root, 2 * pkg.size + 200 * 2**20, "installing it")
+        need_space(Path(have.location).anchor if have.location else self.install_drive(), 2 * pkg.size + 200 * 2**20, "installing it")
         path = self._get(pkg, have.publisher, report, cancel)
         report("install", 0, 0, "Waiting for Windows' installer" if self._install_lock.locked() else "Installing")
         with self._install_lock:
@@ -431,7 +466,7 @@ class Engine:
         if not ok:
             raise RuntimeError(f"the saved previous version failed the signature check ({why})")
         with self._install_lock:
-            ok, err = winapps.install(f, close_app=close_app)
+            ok, err = winapps.install(f, close_app=close_app, force=True)     # a roll back goes backwards on purpose
         if not ok:
             raise RuntimeError(err)
         self.all_installed = winapps.installed()

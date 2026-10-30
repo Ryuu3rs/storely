@@ -93,6 +93,14 @@ class Queue(QObject):
         self._touch(it)
         return it
 
+    def set_version(self, iid, version: str):
+        """Change what a not-yet-started store item installs (e.g. the user then picked an older version)."""
+        it = self._get(iid)
+        if it and it.state in ("queued", "paused"):
+            it.version, it.close_app = version, True
+            it.msg = f"Queued (version {version})"
+            self._touch(it)
+
     def add_winget(self, up) -> Item:
         cur = self.find(up.id)
         if cur:

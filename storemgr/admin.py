@@ -102,12 +102,15 @@ def unjam(family: str | None = None) -> dict:
     return _elevated("unjam", *(["--family", family] if family else []))
 
 
-def install(path: Path, deps: list[Path] | None = None, close_app: bool = False, publisher: str | None = None) -> dict:
+def install(path: Path, deps: list[Path] | None = None, close_app: bool = False, publisher: str | None = None,
+            force: bool = False) -> dict:
     args = ["--path", str(path)]
     for d in deps or []:
         args += ["--dep", str(d)]
     if close_app:
         args.append("--close")
+    if force:
+        args.append("--force")
     if publisher:
         args += ["--publisher", publisher]
     return _elevated("install", *args, timeout=1800)
