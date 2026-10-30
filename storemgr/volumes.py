@@ -18,6 +18,7 @@ import json
 import os
 import re
 import shutil
+from pathlib import Path
 from dataclasses import dataclass
 
 from . import DATA_DIR
@@ -195,6 +196,14 @@ def apply_default(letter: str) -> list[str]:
         if any(v.drive == letter for v in vols):
             raise RuntimeError(f"{letter}: has an out-of-date app-storage record for another disk")
         store = f"{letter}:\\WindowsApps"
+        # a WindowsApps folder that's already there but wasn't made by Windows/an admin could have been planted by
+        # a standard user (with permissions of their choosing) to sit under every app installed to this drive
+        if Path(store).exists():
+            from . import secure
+            owner = [w for w in secure.untrusted_writers(store) if w.startswith("owner")]
+            if owner or secure.is_reparse(store):
+                raise RuntimeError(f"{store} already exists and wasn't created by Windows - rename or remove it first, "
+                                   "then try again")
         ok, err = _run(f"Add-AppxVolume -Path {q(store)} | Out-Null", 300)
         if not ok:
             raise RuntimeError(f"couldn't add {letter}: for apps: {_err(err)}")

@@ -65,6 +65,54 @@ def need_space(where, needed: int, what: str) -> None:
         raise RuntimeError(f"Not enough space on {drive} for {what}: needs about {gb(needed)}, {gb(free)} free")
 
 
+def user_sid() -> str:
+    """The signed-in account's SID, e.g. S-1-5-21-...-1001 ("" if Windows won't say)."""
+    adv, k32 = ctypes.WinDLL("advapi32", use_last_error=True), ctypes.WinDLL("kernel32")
+    k32.GetCurrentProcess.restype = wintypes.HANDLE
+    k32.LocalFree.argtypes = [ctypes.c_void_p]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    adv.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    adv.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+                                        ctypes.POINTER(wintypes.DWORD)]
+    adv.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)]
+    tok = wintypes.HANDLE()
+    if not adv.OpenProcessToken(k32.GetCurrentProcess(), 0x0008, ctypes.byref(tok)):    # TOKEN_QUERY
+        return ""
+    try:
+        size = wintypes.DWORD()
+        adv.GetTokenInformation(tok, 1, None, 0, ctypes.byref(size))                     # TokenUser
+        buf = ctypes.create_string_buffer(size.value)
+        if not adv.GetTokenInformation(tok, 1, buf, size, ctypes.byref(size)):
+            return ""
+        psid = ctypes.cast(buf, ctypes.POINTER(ctypes.c_void_p))[0]
+        out = wintypes.LPWSTR()
+        if not adv.ConvertSidToStringSidW(ctypes.c_void_p(psid), ctypes.byref(out)):
+            return ""
+        try:
+            return out.value
+        finally:
+            k32.LocalFree(out)
+    finally:
+        k32.CloseHandle(tok)
+
+
+def pipe_server_is_me(handle: int) -> bool:
+    """Is the process on the other end of a named pipe running as this same account? (Pipe names are shared by
+    every account on the PC, so another one could pretend to be our already-open window.)"""
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.GetNamedPipeServerProcessId.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)]
+    pid = wintypes.ULONG()
+    if not k32.GetNamedPipeServerProcessId(wintypes.HANDLE(handle), ctypes.byref(pid)):
+        return False
+    try:
+        import getpass
+        import psutil
+        owner = psutil.Process(pid.value).username() or ""
+    except Exception:              # a process we can't even look at is not ours
+        return False
+    return owner.split("\\")[-1].lower() == getpass.getuser().lower()
+
+
 def windows_region() -> tuple[str, str]:
     """(Store market, language) from Windows' own region settings, e.g. ("US", "en-US"); ("US", "en-US") if unknown."""
     k32 = ctypes.WinDLL("kernel32")

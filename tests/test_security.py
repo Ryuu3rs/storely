@@ -68,6 +68,15 @@ def test_writers_in_sddl():
     assert secure.writers_in("O:BAD:(A;;FA;;;WD)") == ["S-1-1-0"]
 
 
+def test_unusual_entries_fail_closed():
+    # a conditional ("callback") allow entry granting write to Users is never ignored
+    assert secure.writers_in("O:BAD:(A;;FA;;;SY)(XA;;FA;;;BU;(Exists X))")
+    # an entry the parser can't read means "assume someone else can write"
+    assert secure.writers_in("O:BAD:(A;;FA;;;SY)(garbled)")
+    # deny entries still grant nothing
+    assert secure.writers_in("O:BAD:(A;;FA;;;SY)(D;;FA;;;BU)") == []
+
+
 def test_protected_sddl_is_itself_protected():
     assert secure.writers_in("O:BA" + secure.PROTECTED_SDDL) == []
 

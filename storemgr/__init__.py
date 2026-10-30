@@ -24,8 +24,41 @@ CACHE_DIR = DATA_DIR / "cache"
 DOWNLOAD_DIR = DATA_DIR / "downloads"
 ROLLBACK_DIR = DATA_DIR / "rollback"
 LOG_FILE = DATA_DIR / "storely.log"
+def _known_folder(guid: str) -> str:
+    """A Windows folder straight from Windows (not from environment variables, which the user can change - the
+    admin helper must not be steered by them)."""
+    import ctypes
+    import uuid
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD),
+                    ("Data4", ctypes.c_ubyte * 8)]
+    u = uuid.UUID(guid)
+    g = GUID(u.fields[0], u.fields[1], u.fields[2], (ctypes.c_ubyte * 8)(*u.bytes[8:]))
+    out = ctypes.c_wchar_p()
+    shell32 = ctypes.WinDLL("shell32")
+    shell32.SHGetKnownFolderPath.argtypes = [ctypes.POINTER(GUID), wintypes.DWORD, wintypes.HANDLE,
+                                             ctypes.POINTER(ctypes.c_wchar_p)]
+    try:
+        if shell32.SHGetKnownFolderPath(ctypes.byref(g), 0, None, ctypes.byref(out)) != 0:
+            return ""
+        return out.value or ""
+    finally:
+        ctypes.WinDLL("ole32").CoTaskMemFree(out)
+
+
+def _system_dir() -> str:
+    import ctypes
+    buf = ctypes.create_unicode_buffer(260)
+    return buf.value if ctypes.WinDLL("kernel32").GetSystemDirectoryW(buf, 260) else ""
+
+
+SYSTEM32 = Path(_system_dir() or r"C:\Windows\System32")
+PROGRAM_FILES = Path(_known_folder("905e63b6-c1bf-494e-b29c-65b732d3d21a") or r"C:\Program Files")
+PROGRAM_DATA = Path(_known_folder("62ab5d82-fdc1-4dc3-a9dd-070d1d495d97") or r"C:\ProgramData")
 # admin/SYSTEM work area: only SYSTEM + Administrators can write here (see secure.ensure_protected_dir)
-MACHINE_DIR = Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "Storely"
+MACHINE_DIR = PROGRAM_DATA / "Storely"
 RESULTS_DIR = MACHINE_DIR / "results"
 
 

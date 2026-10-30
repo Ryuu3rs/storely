@@ -20,7 +20,8 @@ from pathlib import Path
 
 import psutil
 
-from . import MACHINE_DIR, RESULTS_DIR, launcher, secure
+from . import MACHINE_DIR, PROGRAM_DATA, PROGRAM_FILES, RESULTS_DIR, launcher, secure
+from . import winapps
 from .winapps import FAMILY_RE, NO_WINDOW, SYSTEM32, ps, q, verify_signature
 
 JOB_RE = re.compile(r"\A[0-9a-f]{32}\Z")
@@ -68,6 +69,7 @@ def elevated_main(argv: list[str]) -> int:
     p.add_argument("--value", choices=["on", "off"], default="off")
     p.add_argument("--drive", default="")
     a = _parse(p, argv)
+    winapps.trust_system_modules()
     if a is None or (a.drive and not DRIVE_RE.match(a.drive)) or (a.action == "app-volume" and not a.drive):
         return 2
     res = {"ok": True, "steps": [], "errors": []}
@@ -245,6 +247,7 @@ def _app_volume(a, res: dict) -> None:
 
 def system_main(argv: list[str]) -> int:
     a = _parse(_parser("--system-task", ["move-rslc", "cleanup-deleted"]), argv)
+    winapps.trust_system_modules()
     if a is None or not secure.protected(MACHINE_DIR) or not RESULTS_DIR.is_dir():
         return 2
     try:
@@ -256,7 +259,7 @@ def system_main(argv: list[str]) -> int:
 
 
 def _move_rslc(family: str) -> dict:
-    repo = Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "Microsoft" / "Windows" / "AppRepository"
+    repo = PROGRAM_DATA / "Microsoft" / "Windows" / "AppRepository"
     pkg = family.rsplit("_", 1)[0].lower() if family else ""
     backup = BACKUP / time.strftime("%Y%m%d-%H%M%S")
     backup.mkdir(parents=True, exist_ok=True)
@@ -276,7 +279,7 @@ def _move_rslc(family: str) -> dict:
 
 def _cleanup_deleted() -> dict:
     from .cleanup import folder_size
-    d = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "WindowsApps" / "Deleted"
+    d = PROGRAM_FILES / "WindowsApps" / "Deleted"
     if not d.is_dir():
         return {"freed": 0, "left": 0}
     before = folder_size(d)

@@ -87,10 +87,14 @@ def writers_in(sddl: str) -> list[str]:
     dacl = sddl[sddl.find("D:"):] if "D:" in sddl else ""
     if not dacl or dacl.startswith("D:NO_ACCESS_CONTROL"):
         return out + ["no permissions set (everyone has full access)"]
-    for kind, flags, rights, sid in _ACE.findall(dacl):
-        if kind != "A" or "IO" in flags:      # deny entries / inherit-only entries don't grant anything here
+    aces = _ACE.findall(dacl)
+    if len(aces) != dacl.count("("):          # an entry we couldn't read: assume the worst
+        return out + ["permissions this check can't read"]
+    for kind, flags, rights, sid in aces:
+        if kind in ("D", "OD", "XD") or "IO" in flags:   # deny / inherit-only entries grant nothing here
             continue
         who = _sid(sid)
+        # any other allow type (plain, object or conditional "callback" entries) is judged by what it grants
         if who not in TRUSTED and _mask(rights) & WRITE_MASK:
             out.append(who)
     return out

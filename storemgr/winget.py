@@ -51,7 +51,11 @@ class Upgrade:
 def exe() -> str | None:
     """winget by full path: the App Installer alias in your WindowsApps folder, else whatever PATH has."""
     alias = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WindowsApps" / "winget.exe"
-    return str(alias) if alias.exists() else shutil.which("winget")
+    if alias.exists():
+        return str(alias)
+    found = shutil.which("winget")
+    # never a winget.exe that just happens to sit in the current folder (which() looks there first on Windows)
+    return found if found and Path(found).resolve().parent != Path.cwd().resolve() else None
 
 
 def available() -> bool:
@@ -126,7 +130,7 @@ def upgrade(pkg_id: str, report=lambda stage, done, total, msg: None, cancel: th
     if not w:
         raise RuntimeError("winget isn't installed (it comes with 'App Installer' from the Store)")
     cancel = cancel or threading.Event()
-    p = subprocess.Popen([w, "upgrade", "--id", pkg_id, "--exact", "--silent", "--accept-package-agreements", *COMMON],
+    p = subprocess.Popen([w, "upgrade", "--id", pkg_id, "--exact", "--source", "winget", "--silent", "--accept-package-agreements", *COMMON],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=NO_WINDOW)
     seen: list[str] = []
 

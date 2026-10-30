@@ -19,7 +19,7 @@ from .fe3 import vtuple
 NO_WINDOW = 0x08000000
 ARCH = "x64" if os.environ.get("PROCESSOR_ARCHITECTURE", "").upper() in ("AMD64", "") else \
     os.environ.get("PROCESSOR_ARCHITECTURE", "x64").lower()
-SYSTEM32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+from . import PROGRAM_FILES, SYSTEM32  # noqa: E402 - from Windows itself, not environment variables
 # family names are Name_PublisherId: letters/digits/dots/dashes, then 13 base32 characters
 FAMILY_RE = re.compile(r"\A[A-Za-z0-9.\-]{3,50}_[0-9a-hjkmnp-tv-z]{13}\Z")
 
@@ -27,11 +27,21 @@ FAMILY_RE = re.compile(r"\A[A-Za-z0-9.\-]{3,50}_[0-9a-hjkmnp-tv-z]{13}\Z")
 def _powershell() -> str:
     """PowerShell 7 if it's installed in its normal (admin-only) place, else Windows PowerShell 5.1 - always by
     full path, never whatever 'pwsh' a PATH entry happens to point at."""
-    pwsh = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "PowerShell" / "7" / "pwsh.exe"
+    pwsh = PROGRAM_FILES / "PowerShell" / "7" / "pwsh.exe"
     return str(pwsh) if pwsh.exists() else str(SYSTEM32 / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 
 
 PWSH = _powershell()
+# set by the admin/SYSTEM helper: load the Windows modules it uses from System32 by path, so a same-named module
+# planted in the user's Documents\\PowerShell\\Modules (searched first) can't stand in for them
+TRUSTED_MODULES = ""
+
+
+def trust_system_modules() -> None:
+    global TRUSTED_MODULES
+    mods = SYSTEM32 / "WindowsPowerShell" / "v1.0" / "Modules"
+    TRUSTED_MODULES = "".join(f"Import-Module -Name {q(mods / m / (m + '.psd1'))} -ErrorAction Stop; "
+                              for m in ("Appx", "ScheduledTasks"))
 _PRELUDE = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; if ($PSStyle) { $PSStyle.OutputRendering = 'PlainText' }; "
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -50,7 +60,7 @@ def ps(script: str, timeout: float = 120) -> subprocess.CompletedProcess:
     env = None if PWSH.lower().endswith("pwsh.exe") else \
         {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
     try:
-        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", _PRELUDE + script],
+        r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", _PRELUDE + TRUSTED_MODULES + script],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
                            creationflags=NO_WINDOW, env=env)
     except subprocess.TimeoutExpired as e:

@@ -765,14 +765,18 @@ def parse_store_link(text: str) -> tuple[str, str]:
 
 
 def _instance_name() -> str:
-    return f"Storely-{getpass.getuser()}"
+    return f"Storely-{winsys.user_sid() or getpass.getuser()}"
 
 
 def _hand_over(msg: str) -> bool:
-    """Pass a link to the copy that's already open. True if one was."""
+    """Pass a link to the copy that's already open. True if one was - and only if that copy is really this
+    account's Storely (another account could create a pipe with this name first)."""
     s = QLocalSocket()
     s.connectToServer(_instance_name())
     if not s.waitForConnected(500):
+        return False
+    if not winsys.pipe_server_is_me(int(s.socketDescriptor())):
+        s.abort()
         return False
     s.write(msg.encode("utf-8")[:4096])
     s.waitForBytesWritten(1000)
