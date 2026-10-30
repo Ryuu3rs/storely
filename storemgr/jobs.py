@@ -11,7 +11,7 @@ import traceback
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 
 from . import DATA_DIR, admin, health, storequeue
-from .download import Cancelled
+from .download import Cancelled, plain
 from .engine import App, Engine, NotYetOut, log
 
 HISTORY_FILE = DATA_DIR / "history.json"
@@ -33,7 +33,7 @@ class _Task(QRunnable):
         except Cancelled:
             self.sig.done.emit(self.token, None, "cancelled")
         except Exception as e:
-            self.sig.done.emit(self.token, None, f"{e}" or traceback.format_exc(limit=1))
+            self.sig.done.emit(self.token, None, plain(e) or traceback.format_exc(limit=1))
 
 
 class Jobs(QObject):

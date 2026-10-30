@@ -20,6 +20,21 @@ class Cancelled(Exception):
     pass
 
 
+def plain(e: BaseException) -> str:
+    """A network error in words a person can act on, instead of HTTPSConnectionPool(host=..., url=...)."""
+    if isinstance(e, requests.Timeout):
+        return "Microsoft's servers didn't answer in time - try again in a minute"
+    if isinstance(e, requests.ConnectionError):
+        return "Can't reach Microsoft's servers - check your internet connection"
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        code = e.response.status_code
+        return (f"Microsoft's server refused the request (HTTP {code})" if code < 500
+                else f"Microsoft's server had a problem (HTTP {code}) - try again later")
+    if isinstance(e, requests.RequestException):
+        return "The download was interrupted - try again"
+    return str(e)
+
+
 class _Limiter:
     """Shared speed limit across every download thread (bytes per second; 0 = unlimited)."""
 
@@ -147,7 +162,7 @@ def fetch(url: str, dest: Path, size: int, digest: str, progress=None, cancel: t
     if cancel.is_set():
         raise Cancelled()
     if errors:
-        raise RuntimeError(f"download failed: {errors[0]}")
+        raise RuntimeError(f"Download failed: {plain(errors[0])}") from errors[0]   # full detail stays in the chain
     if progress:
         progress(size, size, 0)
     got = file_digest(part, algo)

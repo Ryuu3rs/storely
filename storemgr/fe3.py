@@ -235,7 +235,9 @@ def same_line(v: tuple, line: tuple, offered_majors: set | frozenset = frozenset
         return True
     if old in offered_majors:
         return False
-    return new > old and len(str(new)) == len(str(old))
+    # the old line is gone: follow it upward - same number of digits (2608 -> 2609) or a small step (9 -> 10),
+    # never a jump into another era's numbering (11 -> 2019)
+    return new > old and (len(str(new)) == len(str(old)) or new - old <= 2)
 
 
 def majors(files: list[PackageFile]) -> frozenset:

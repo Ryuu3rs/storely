@@ -149,6 +149,9 @@ def upgrade(pkg_id: str, report=lambda stage, done, total, msg: None, cancel: th
     end = time.monotonic() + timeout
     while p.poll() is None:
         if cancel.is_set() or time.monotonic() > end:
+            # winget starts the program's own installer as a child: end the whole tree, not just winget
+            subprocess.run([str(_system32() / "taskkill.exe"), "/T", "/F", "/PID", str(p.pid)], capture_output=True,
+                           timeout=30, creationflags=NO_WINDOW)
             p.kill()
             t.join(2)
             if cancel.is_set():
@@ -157,6 +160,18 @@ def upgrade(pkg_id: str, report=lambda stage, done, total, msg: None, cancel: th
             raise RuntimeError(f"winget took longer than {int(timeout / 60)} minutes - stopped")
         time.sleep(0.25)
     t.join(5)
-    if p.returncode != 0:
+    code = p.returncode & 0xFFFFFFFF
+    if code in SUCCESS:
+        return SUCCESS[code]
+    if code != 0:
         raise RuntimeError(explain(p.returncode, "\n".join(seen)))
     return ""
+
+
+# result codes that mean it worked (not failures): what to tell the user instead
+SUCCESS = {0x8A150109: "updated - restart Windows to finish", 0x8A15010D: "already up to date"}
+
+
+def _system32():
+    from . import SYSTEM32
+    return SYSTEM32

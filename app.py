@@ -726,7 +726,8 @@ class Main(QMainWindow, BrowsePages, ManagePages):
             self.show_page("updates")
 
 
-PRODUCT_ID = re.compile(r"[A-Za-z0-9]{12}")
+# Store packages: 9 + 11 characters; desktop-installer apps (Discord, PowerToys...): XP + 12
+PRODUCT_ID = re.compile(r"(?i)9[A-Z0-9]{11}|XP[A-Z0-9]{12}")
 
 
 def parse_store_link(text: str) -> tuple[str, str]:
@@ -737,8 +738,10 @@ def parse_store_link(text: str) -> tuple[str, str]:
     scheme, host = u.scheme.lower(), (u.hostname or "").lower()
     if scheme in ("http", "https"):
         if host in ("apps.microsoft.com", "www.microsoft.com", "microsoft.com"):
-            last = [p for p in u.path.split("/") if p]
-            pid = next((p for p in reversed(last) if PRODUCT_ID.fullmatch(p)), "")
+            parts = [p for p in u.path.split("/") if p]
+            keys = [i for i, p in enumerate(parts) if p.lower() in ("detail", "productid", "p")]
+            # only what follows /detail/, /productId/ or /p/ - never e.g. /collections/productivity
+            pid = next((p for p in parts[keys[0] + 1:] if PRODUCT_ID.fullmatch(p)), "") if keys else ""
             if pid:
                 return "product", pid.upper()
         return "", ""
@@ -751,7 +754,7 @@ def parse_store_link(text: str) -> tuple[str, str]:
     if scheme != "ms-windows-store":
         return "", ""
     pid, pfn = qs.get("productid", ""), qs.get("pfn", "")
-    if re.fullmatch(r"[A-Za-z0-9]{8,20}", pid):
+    if PRODUCT_ID.fullmatch(pid):
         return "product", pid.upper()
     if winapps.FAMILY_RE.match(pfn):
         return "family", pfn

@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass, field
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from . import DATA_DIR, perms, winsys, wpm
-from .download import LIMIT, Cancelled
+from .download import LIMIT, Cancelled, plain
 from .engine import Engine, NotYetOut, log
 
 QUEUE_FILE = DATA_DIR / "queue.json"
@@ -323,7 +323,7 @@ class Queue(QObject):
             elif it.kind == "winget":
                 from . import winget
                 v = winget.upgrade(it.key, report, ev)
-                ok, msg = True, f"Updated to {v}" if v else "Updated"
+                ok, msg = True, (v[:1].upper() + v[1:]) if v else "Updated"
             elif it.kind == "framework":
                 name, arch = it.key.split("|", 1)
                 have, pkg = next(((h, p) for h, p in self.engine.framework_updates()
@@ -346,7 +346,7 @@ class Queue(QObject):
             self._ctl.pop(it.id, None)
             return
         except Exception as e:
-            ok, msg = False, str(e)
+            ok, msg = False, plain(e)
             log.error("queue %s %s failed: %s", it.kind, it.title, e)
         self._ctl.pop(it.id, None)
         if it.state != "skipped":
@@ -369,7 +369,7 @@ class Queue(QObject):
             self._touch(it)
             return
         except Exception as e:
-            ok, msg = False, str(e)
+            ok, msg = False, plain(e)
             log.error("queue store %s failed: %s", it.title, e)
         self._ctl.pop(it.id, None)
         it.state = "done" if ok else "failed"

@@ -35,6 +35,8 @@ def test_best_stays_on_installed_version_line():
     ((2019, 22), (11, 2409), {2019}, False),                    # ...even when 11.x is gone (digits differ)
     ((1, 21), (2024, 203), {1}, False),                         # Xbox Speech: older line
     ((2, 0), (1, 9), {2}, True),                                # 1.x retired, 2.x is the line now
+    ((10, 0), (9, 5), {10}, True),                              # 9.x retired, 10.x: digits differ but a small step
+    ((10, 0), (9, 5), {9, 10}, False),                          # ...but not while 9.x is still offered
 ])
 def test_same_line(new, old, offered, ok):
     assert fe3.same_line(new, old, offered) is ok
@@ -118,6 +120,11 @@ def test_for_this_pc_drops_xbox_and_arm_only():
     ("storely://updates", ("updates", "")),
     ("storely://update-all?token=abc", ("update-all", "abc")),
     ("storely://format-c", ("home", "")),
+    ("https://apps.microsoft.com/detail/xp8bt8dw290mpq?hl=en-gb", ("product", "XP8BT8DW290MPQ")),
+    ("https://apps.microsoft.com/collections/productivity", ("", "")),
+    ("https://www.microsoft.com/en-gb/p/spotify/9ncbcszsjrsb", ("product", "9NCBCSZSJRSB")),
+    ("ms-windows-store://pdp/?ProductId=XP8BT8DW290MPQ", ("product", "XP8BT8DW290MPQ")),
+    ("ms-windows-store://pdp/?ProductId=12345678", ("home", "")),
 ])
 def test_parse_store_link(link, expected):
     assert parse_store_link(link) == expected

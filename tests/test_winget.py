@@ -65,6 +65,34 @@ def test_upgrade_refuses_bad_ids_without_running(monkeypatch, bad):
         winget.upgrade(bad)
 
 
+class FakeWinget:
+    """Stands in for the winget process: prints a line, then exits with `code`."""
+    def __init__(self, code):
+        import io
+        self.stdout, self.returncode, self.pid, self._code = io.BytesIO(b"Installing...\r\n"), None, 4242, code
+
+    def poll(self):
+        self.returncode = self._code
+        return self.returncode
+
+    def kill(self):
+        pass
+
+
+@pytest.mark.parametrize("code,word", [(0x8A150109, "restart"), (0x8A15010D, "already"), (0, "")])
+def test_reboot_needed_and_already_installed_count_as_success(monkeypatch, code, word):
+    monkeypatch.setattr(winget, "exe", lambda: "winget.exe")
+    monkeypatch.setattr(winget.subprocess, "Popen", lambda *a, **k: FakeWinget(code))
+    assert word in winget.upgrade("Some.App")
+
+
+def test_real_failure_still_raises(monkeypatch):
+    monkeypatch.setattr(winget, "exe", lambda: "winget.exe")
+    monkeypatch.setattr(winget.subprocess, "Popen", lambda *a, **k: FakeWinget(0x8A150011))
+    with pytest.raises(RuntimeError, match="checksum"):
+        winget.upgrade("Some.App")
+
+
 def test_explain_known_and_unknown():
     assert "checksum" in winget.explain(0x8A150011)
     assert "checksum" in winget.explain(-1978335215)          # same code as a signed exit status
